@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Be Vietnam Pro", sans-serif;
+  --color-primary: #006c49;
+  --color-primary-container: #10b981;
+  --color-on-primary-container: #002113;
+  --color-secondary: #855300;
+  --color-secondary-container: #fea619;
+  --color-tertiary: #005ac2;
+  --color-tertiary-container: #71a1ff;
+  --color-on-surface: #151c27;
+  --color-on-surface-variant: #3c4a42;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f0f3ff;
+  --color-surface-container-high: #e2e8f8;
+  --color-surface-container-highest: #dce2f3;
+  --color-background: #f9f9ff;
+  --color-outline: #6c7a71;
+  --color-outline-variant: #bbcabf;
+  --color-error: #ba1a1a;
+  --color-error-container: #ffdad6;
+  --color-on-error-container: #93000a;
+}
+
+body {
+  font-family: "Be Vietnam Pro", sans-serif;
+  background-color: #f9f9ff;
+  color: #151c27;
+}
+
+/* Animations from design */
+.fade-in {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-skeleton {
+  animation: skeleton-pulse 1.5s infinite ease-in-out;
+}
+
+@keyframes skeleton-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
