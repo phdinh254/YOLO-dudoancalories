@@ -64,9 +64,7 @@ class PredictResponse(BaseModel):
 app = FastAPI(title="VietFood AI Demo", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
-    # Demo-local setting: keep "*" so frontend/index.html opened via file:// can call the API.
-    # Tighten this before exposing the backend outside a trusted local machine.
-    allow_origins=["*"],
+    allow_origins=["http://127.0.0.1:3000", "http://localhost:3000"],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],

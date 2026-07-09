@@ -257,6 +257,7 @@ export default function App() {
     };
     setUser(mockUser);
     localStorage.setItem('vietfood_user', JSON.stringify(mockUser));
+    setTab('recognize');
     setAuthScreen(null);
     showToast('Đăng nhập thành công! Chào mừng ' + mockUser.name, 'success');
   };
@@ -282,6 +283,7 @@ export default function App() {
     };
     setUser(newUser);
     localStorage.setItem('vietfood_user', JSON.stringify(newUser));
+    setTab('recognize');
     setAuthScreen(null);
     showToast('Tạo tài khoản thành công! Chào mừng ' + signupName, 'success');
   };
@@ -290,6 +292,7 @@ export default function App() {
     setUser(null);
     localStorage.removeItem('vietfood_user');
     resetUpload();
+    setTab('recognize');
     setAuthScreen('login');
     showToast('Đã đăng xuất tài khoản', 'info');
   };
@@ -438,6 +441,7 @@ export default function App() {
     if (activeFilter === 'week') return log.filterGroup === 'today' || log.filterGroup === 'week' || log.date.includes('Hôm nay') || log.date.includes('Hôm qua');
     return true; // Monthly gets all
   });
+  const showMainMenu = Boolean(user && !authScreen);
 
   return (
     <div className="min-h-screen bg-[#f9f9ff] text-[#151c27] flex flex-col font-sans pb-24 md:pb-0">
@@ -464,39 +468,52 @@ export default function App() {
 
       {/* Top Application Bar */}
       <header className="fixed top-0 w-full z-50 bg-[#f9f9ff]/80 backdrop-blur-md shadow-sm flex justify-between items-center px-6 md:px-12 h-16 border-b border-[#bbcabf]/30">
-        <div className="flex items-center gap-2 cursor-pointer" onClick={() => setTab('recognize')}>
+        <div
+          className="flex items-center gap-2 cursor-pointer"
+          onClick={() => {
+            if (user) {
+              setTab('recognize');
+              setAuthScreen(null);
+            } else {
+              setAuthScreen('login');
+            }
+          }}
+        >
           <span className="material-symbols-outlined text-[#006c49] text-3xl font-bold">restaurant</span>
           <h1 className="text-2xl font-extrabold tracking-tight text-[#006c49]">VietFood AI</h1>
         </div>
 
         {/* Desktop Navigation */}
         <nav className="hidden md:flex items-center gap-8">
-          <button
-            onClick={() => { setTab('recognize'); setAuthScreen(null); }}
-            className={`font-medium text-sm flex items-center gap-1.5 py-1 transition-all ${
-              tab === 'recognize' ? 'text-[#006c49] border-b-2 border-[#006c49]' : 'text-[#3c4a42] hover:text-[#006c49]'
-            }`}
-          >
-            <span className="material-symbols-outlined text-[20px]">photo_camera</span> Nhận diện
-          </button>
-          <button
-            onClick={() => { setTab('history'); setAuthScreen(null); }}
-            className={`font-medium text-sm flex items-center gap-1.5 py-1 transition-all ${
-              tab === 'history' ? 'text-[#006c49] border-b-2 border-[#006c49]' : 'text-[#3c4a42] hover:text-[#006c49]'
-            }`}
-          >
-            <span className="material-symbols-outlined text-[20px]">history</span> Lịch sử
-          </button>
-          {user ? (
-            <button
-              onClick={() => { setTab('settings'); setAuthScreen(null); }}
-              className={`font-medium text-sm flex items-center gap-1.5 py-1 transition-all ${
-                tab === 'settings' ? 'text-[#006c49] border-b-2 border-[#006c49]' : 'text-[#3c4a42] hover:text-[#006c49]'
-              }`}
-            >
-              <span className="material-symbols-outlined text-[20px]">settings</span> Cài đặt
-            </button>
-          ) : (
+          {showMainMenu && (
+            <>
+              <button
+                onClick={() => { setTab('recognize'); setAuthScreen(null); }}
+                className={`font-medium text-sm flex items-center gap-1.5 py-1 transition-all ${
+                  tab === 'recognize' ? 'text-[#006c49] border-b-2 border-[#006c49]' : 'text-[#3c4a42] hover:text-[#006c49]'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[20px]">photo_camera</span> Nhận diện
+              </button>
+              <button
+                onClick={() => { setTab('history'); setAuthScreen(null); }}
+                className={`font-medium text-sm flex items-center gap-1.5 py-1 transition-all ${
+                  tab === 'history' ? 'text-[#006c49] border-b-2 border-[#006c49]' : 'text-[#3c4a42] hover:text-[#006c49]'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[20px]">history</span> Lịch sử
+              </button>
+              <button
+                onClick={() => { setTab('settings'); setAuthScreen(null); }}
+                className={`font-medium text-sm flex items-center gap-1.5 py-1 transition-all ${
+                  tab === 'settings' ? 'text-[#006c49] border-b-2 border-[#006c49]' : 'text-[#3c4a42] hover:text-[#006c49]'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[20px]">settings</span> Cài đặt
+              </button>
+            </>
+          )}
+          {!user && !authScreen && (
             <button
               onClick={() => setAuthScreen('login')}
               className="font-bold text-sm bg-[#006c49] text-white px-5 py-2 rounded-xl hover:brightness-110 active:scale-95 transition-all shadow-sm"
@@ -508,15 +525,15 @@ export default function App() {
 
         {/* Mobile/Quick Actions */}
         <div className="md:hidden flex items-center gap-2">
-          {user ? (
+          {showMainMenu ? (
             <button onClick={() => setTab('settings')} className="p-2 text-[#3c4a42] hover:text-[#006c49]">
               <span className="material-symbols-outlined">settings</span>
             </button>
-          ) : (
+          ) : !authScreen ? (
             <button onClick={() => setAuthScreen('login')} className="p-2 text-[#3c4a42]">
               <span className="material-symbols-outlined">login</span>
             </button>
-          )}
+          ) : null}
         </div>
       </header>
 
@@ -1283,44 +1300,39 @@ export default function App() {
       )}
 
       {/* Bottom Navigation for Mobile Only */}
-      <nav className="md:hidden fixed bottom-0 left-0 w-full z-50 bg-[#f9f9ff]/80 backdrop-blur-md shadow-[0_-4px_20px_rgba(0,0,0,0.05)] border-t border-[#bbcabf]/30 flex justify-around items-center px-4 pb-6 pt-2">
-        <button
-          onClick={() => { setTab('recognize'); setAuthScreen(null); }}
-          className={`flex flex-col items-center justify-center transition-all ${
-            tab === 'recognize' && !authScreen ? 'bg-[#006c49]/10 text-[#006c49] px-5 py-1.5 rounded-2xl font-bold' : 'text-[#3c4a42]'
-          }`}
-        >
-          <span className={`material-symbols-outlined ${tab === 'recognize' && !authScreen ? 'fill-icon' : ''}`}>photo_camera</span>
-          <span className="text-[10px] font-bold mt-0.5">Nhận diện</span>
-        </button>
+      {showMainMenu && (
+        <nav className="md:hidden fixed bottom-0 left-0 w-full z-50 bg-[#f9f9ff]/80 backdrop-blur-md shadow-[0_-4px_20px_rgba(0,0,0,0.05)] border-t border-[#bbcabf]/30 flex justify-around items-center px-4 pb-6 pt-2">
+          <button
+            onClick={() => { setTab('recognize'); setAuthScreen(null); }}
+            className={`flex flex-col items-center justify-center transition-all ${
+              tab === 'recognize' ? 'bg-[#006c49]/10 text-[#006c49] px-5 py-1.5 rounded-2xl font-bold' : 'text-[#3c4a42]'
+            }`}
+          >
+            <span className={`material-symbols-outlined ${tab === 'recognize' ? 'fill-icon' : ''}`}>photo_camera</span>
+            <span className="text-[10px] font-bold mt-0.5">Nhận diện</span>
+          </button>
 
-        <button
-          onClick={() => { setTab('history'); setAuthScreen(null); }}
-          className={`flex flex-col items-center justify-center transition-all ${
-            tab === 'history' && !authScreen ? 'bg-[#006c49]/10 text-[#006c49] px-5 py-1.5 rounded-2xl font-bold' : 'text-[#3c4a42]'
-          }`}
-        >
-          <span className={`material-symbols-outlined ${tab === 'history' && !authScreen ? 'fill-icon' : ''}`}>history</span>
-          <span className="text-[10px] font-bold mt-0.5">Lịch sử</span>
-        </button>
+          <button
+            onClick={() => { setTab('history'); setAuthScreen(null); }}
+            className={`flex flex-col items-center justify-center transition-all ${
+              tab === 'history' ? 'bg-[#006c49]/10 text-[#006c49] px-5 py-1.5 rounded-2xl font-bold' : 'text-[#3c4a42]'
+            }`}
+          >
+            <span className={`material-symbols-outlined ${tab === 'history' ? 'fill-icon' : ''}`}>history</span>
+            <span className="text-[10px] font-bold mt-0.5">Lịch sử</span>
+          </button>
 
-        <button
-          onClick={() => {
-            if (user) {
-              setTab('settings');
-              setAuthScreen(null);
-            } else {
-              setAuthScreen('login');
-            }
-          }}
-          className={`flex flex-col items-center justify-center transition-all ${
-            (tab === 'settings' || authScreen) ? 'bg-[#006c49]/10 text-[#006c49] px-5 py-1.5 rounded-2xl font-bold' : 'text-[#3c4a42]'
-          }`}
-        >
-          <span className={`material-symbols-outlined ${(tab === 'settings' || authScreen) ? 'fill-icon' : ''}`}>settings</span>
-          <span className="text-[10px] font-bold mt-0.5">Cài đặt</span>
-        </button>
-      </nav>
+          <button
+            onClick={() => { setTab('settings'); setAuthScreen(null); }}
+            className={`flex flex-col items-center justify-center transition-all ${
+              tab === 'settings' ? 'bg-[#006c49]/10 text-[#006c49] px-5 py-1.5 rounded-2xl font-bold' : 'text-[#3c4a42]'
+            }`}
+          >
+            <span className={`material-symbols-outlined ${tab === 'settings' ? 'fill-icon' : ''}`}>settings</span>
+            <span className="text-[10px] font-bold mt-0.5">Cài đặt</span>
+          </button>
+        </nav>
+      )}
 
       {/* Desktop Footer Only */}
       <footer className="hidden md:flex w-full bg-white py-8 px-12 justify-between items-center border-t border-[#bbcabf]/20 mt-12">
