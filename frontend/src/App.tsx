@@ -28,6 +28,93 @@ interface Toast {
   type: 'success' | 'error' | 'info';
 }
 
+interface YoloNutrition {
+  matched?: boolean;
+  food_id?: string | null;
+  food_name_vi?: string;
+  message?: string;
+  calories_per_serving_selected?: number | string;
+  calories_min_final?: number | string;
+  calories_max_final?: number | string;
+}
+
+interface YoloDetection {
+  class_id: number;
+  class_name: string;
+  confidence: number;
+  nutrition?: YoloNutrition | null;
+}
+
+interface YoloPredictResponse {
+  success: boolean;
+  filename: string;
+  message: string;
+  detections: YoloDetection[];
+  annotated_image_base64?: string;
+}
+
+interface RecognitionResult extends Partial<FoodLog> {
+  filename?: string;
+  message?: string;
+  detections: YoloDetection[];
+  annotatedImage?: string;
+  calorieRange?: string;
+  totalCalories: number;
+}
+
+const BACKEND_PREDICT_URL = 'http://127.0.0.1:8000/predict';
+const REQUEST_TIMEOUT_MS = 30000;
+
+const toNumber = (value: number | string | null | undefined): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const normalized = value.trim();
+    if (!normalized || normalized.toLowerCase().includes('chua') || normalized.toLowerCase().includes('missing')) {
+      return null;
+    }
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+};
+
+const getDetectionName = (detection: YoloDetection): string => {
+  return detection.nutrition?.food_name_vi || detection.class_name;
+};
+
+const getDetectionCalories = (detection: YoloDetection): number | null => {
+  return toNumber(detection.nutrition?.calories_per_serving_selected);
+};
+
+const formatConfidence = (confidence: number): number => {
+  return Math.round(confidence * 1000) / 10;
+};
+
+const buildRecognitionResult = (data: YoloPredictResponse): RecognitionResult => {
+  const detections = Array.isArray(data.detections) ? data.detections : [];
+  const primaryDetection = detections[0];
+  const calories = detections.reduce((sum, detection) => sum + (getDetectionCalories(detection) ?? 0), 0);
+  const primaryMin = toNumber(primaryDetection?.nutrition?.calories_min_final);
+  const primaryMax = toNumber(primaryDetection?.nutrition?.calories_max_final);
+
+  return {
+    filename: data.filename,
+    message: data.message,
+    detections,
+    annotatedImage: data.annotated_image_base64,
+    dishName: primaryDetection ? getDetectionName(primaryDetection) : 'Không nhận dạng được món ăn',
+    calories,
+    totalCalories: calories,
+    protein: 0,
+    carbs: 0,
+    fat: 0,
+    confidence: primaryDetection ? formatConfidence(primaryDetection.confidence) : 0,
+    description: data.message,
+    isVietnamese: true,
+    calorieRange: primaryMin !== null && primaryMax !== null ? `${primaryMin} - ${primaryMax} KCAL` : undefined,
+  };
+};
+
 // Pre-seeded logs from mockup
 const PRE_SEEDED_LOGS: FoodLog[] = [
   {
@@ -109,8 +196,9 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [image, setImage] = useState<string | null>(null);
   const [mimeType, setMimeType] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [result, setResult] = useState<Partial<FoodLog> | null>(null);
+  const [result, setResult] = useState<RecognitionResult | null>(null);
   const [isSaved, setIsSaved] = useState(false);
   const [historyList, setHistoryList] = useState<FoodLog[]>([]);
   const [activeFilter, setActiveFilter] = useState<'today' | 'week' | 'month'>('today');
@@ -146,6 +234,13 @@ export default function App() {
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 4000);
+  };
+
+  const requireLogin = () => {
+    if (user) return true;
+    showToast('Vui lòng đăng nhập hoặc đăng ký tài khoản để sử dụng chức năng dự đoán calo.', 'error');
+    setAuthScreen('login');
+    return false;
   };
 
   // Auth Operations
@@ -194,12 +289,17 @@ export default function App() {
   const handleLogout = () => {
     setUser(null);
     localStorage.removeItem('vietfood_user');
+    resetUpload();
     setAuthScreen('login');
     showToast('Đã đăng xuất tài khoản', 'info');
   };
 
   // File handling
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!requireLogin()) {
+      e.target.value = '';
+      return;
+    }
     const file = e.target.files?.[0];
     if (file) {
       processFile(file);
@@ -211,6 +311,7 @@ export default function App() {
       showToast('File ảnh quá lớn, giới hạn tối đa 10MB', 'error');
       return;
     }
+    setSelectedFile(file);
     const reader = new FileReader();
     reader.onload = () => {
       const base64String = (reader.result as string).split(',')[1];
@@ -229,6 +330,7 @@ export default function App() {
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
+    if (!requireLogin()) return;
     const file = e.dataTransfer.files?.[0];
     if (file) {
       processFile(file);
@@ -237,7 +339,9 @@ export default function App() {
 
   // Call API for Food Recognition
   const handleRecognize = async () => {
-    if (!image || !mimeType) {
+    if (!requireLogin()) return;
+
+    if (!selectedFile || !image || !mimeType) {
       showToast('Vui lòng tải ảnh món ăn trước', 'error');
       return;
     }
@@ -245,59 +349,58 @@ export default function App() {
     setIsAnalyzing(true);
     setResult(null);
 
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
     try {
-      const response = await fetch('/api/recognize', {
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+
+      const response = await fetch(BACKEND_PREDICT_URL, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ image, mimeType }),
+        body: formData,
+        signal: controller.signal,
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => null);
 
       if (response.ok) {
-        setResult(data);
+        if (!data?.success) {
+          showToast(data?.message || 'Backend không thể nhận dạng ảnh này.', 'error');
+          return;
+        }
+        const mappedResult = buildRecognitionResult(data);
+        setResult(mappedResult);
+        if (mappedResult.detections.length === 0) {
+          showToast(data.message || 'Không nhận dạng được món ăn nào trong ảnh.', 'info');
+          return;
+        }
+        if (mappedResult.totalCalories === 0) {
+          showToast('Nhận dạng được món, nhưng chưa có calories phù hợp.', 'info');
+          return;
+        }
         showToast('Nhận diện hoàn tất!', 'success');
       } else {
-        if (data.error === 'API_KEY_MISSING') {
-          // Key is missing, run simulated analysis instead of failure so user can preview the layout
-          showToast('Không có khóa API, kích hoạt chế độ mô phỏng Phở Bò', 'info');
-          simulateAnalysis();
-        } else {
-          showToast(data.message || 'Có lỗi khi phân tích ảnh.', 'error');
-        }
+        showToast(data?.detail || data?.message || 'Backend trả về lỗi khi nhận dạng ảnh.', 'error');
       }
     } catch (err: any) {
       console.error(err);
-      showToast('Không thể kết nối với máy chủ, kích hoạt chế độ mô phỏng', 'info');
-      simulateAnalysis();
+      const message =
+        err?.name === 'AbortError'
+          ? 'Request nhận dạng quá thời gian chờ. Hãy thử lại.'
+          : 'Không thể kết nối backend YOLO. Hãy kiểm tra server http://127.0.0.1:8000.';
+      showToast(message, 'error');
+      return;
     } finally {
+      window.clearTimeout(timeoutId);
       setIsAnalyzing(false);
     }
-  };
-
-  const simulateAnalysis = () => {
-    setIsAnalyzing(true);
-    setTimeout(() => {
-      setResult({
-        dishName: 'Phở Bò',
-        calories: 450,
-        protein: 25,
-        carbs: 55,
-        fat: 15,
-        confidence: 98,
-        description: 'Mô phỏng Phở Bò ngon ngọt với lát thịt chín mềm, sợi bánh phở trắng mịn chan nước dùng đậm hương hành gừng.',
-        isVietnamese: true,
-      });
-      setIsAnalyzing(false);
-      showToast('Nhận diện mô phỏng hoàn tất!', 'success');
-    }, 2500);
   };
 
   const resetUpload = () => {
     setImage(null);
     setMimeType(null);
+    setSelectedFile(null);
     setResult(null);
     setIsSaved(false);
   };
@@ -317,7 +420,7 @@ export default function App() {
       description: result.description || 'Số liệu dinh dưỡng tham khảo.',
       date: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) + ' - Hôm nay',
       timestamp: Date.now(),
-      image: image ? `data:${mimeType};base64,${image}` : 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c',
+      image: result.annotatedImage || (image ? `data:${mimeType};base64,${image}` : 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c'),
       isVietnamese: result.isVietnamese ?? true,
       filterGroup: 'today'
     };
@@ -493,17 +596,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Skip Option */}
-            <button
-              onClick={() => {
-                setUser({ name: 'Khách', email: 'guest@vietfood.ai' });
-                setAuthScreen(null);
-                showToast('Đang duyệt với tư cách Khách', 'info');
-              }}
-              className="mt-6 text-sm font-semibold text-[#3c4a42] hover:text-[#006c49] transition-colors"
-            >
-              Bỏ qua đăng nhập
-            </button>
           </div>
         )}
 
@@ -653,7 +745,10 @@ export default function App() {
                       <div
                         onDragOver={handleDragOver}
                         onDrop={handleDrop}
-                        onClick={() => fileInputRef.current?.click()}
+                        onClick={() => {
+                          if (!requireLogin()) return;
+                          fileInputRef.current?.click();
+                        }}
                         className="border-2 border-dashed border-[#bbcabf] hover:border-[#006c49] hover:bg-[#006c49]/5 rounded-2xl p-8 md:p-14 flex flex-col items-center justify-center text-center transition-all cursor-pointer group"
                       >
                         <input
@@ -751,6 +846,15 @@ export default function App() {
                     {/* Result Content State */}
                     {!isAnalyzing && result && (
                       <div className="flex-1 flex flex-col fade-in">
+                        {result.annotatedImage && (
+                          <div className="rounded-2xl overflow-hidden mb-5 aspect-video bg-[#e2e8f8] border border-[#bbcabf]/20">
+                            <img
+                              src={result.annotatedImage}
+                              alt="YOLO annotated result"
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        )}
                         {/* Nutrition header */}
                         <div className="bg-[#fea619]/10 border border-[#fea619]/20 rounded-2xl p-4 mb-6">
                           <div className="flex justify-between items-start">
@@ -768,6 +872,11 @@ export default function App() {
                             </div>
                             <div className="text-right">
                               <span className="block text-2xl font-extrabold text-[#855300]">{result.calories} KCAL</span>
+                              {result.calorieRange && (
+                                <span className="block text-[11px] text-[#3c4a42] font-semibold mt-1">
+                                  {result.calorieRange}
+                                </span>
+                              )}
                               <span className="text-xs text-[#3c4a42] font-semibold">/ khẩu phần</span>
                             </div>
                           </div>
@@ -775,6 +884,48 @@ export default function App() {
                             <p className="text-xs text-[#3c4a42] italic mt-3 pt-2.5 border-t border-[#fea619]/10 leading-relaxed">
                               {result.description}
                             </p>
+                          )}
+                        </div>
+
+                        <div className="space-y-3 flex-1">
+                          {result.detections.length === 0 ? (
+                            <div className="p-4 rounded-2xl bg-[#f0f3ff] text-sm font-semibold text-[#3c4a42]">
+                              Backend không tìm thấy món ăn nào trong ảnh này.
+                            </div>
+                          ) : (
+                            result.detections.map((detection) => {
+                              const calories = getDetectionCalories(detection);
+                              const minCalories = toNumber(detection.nutrition?.calories_min_final);
+                              const maxCalories = toNumber(detection.nutrition?.calories_max_final);
+                              return (
+                                <div
+                                  key={`${detection.class_id}-${detection.class_name}-${detection.confidence}`}
+                                  className="p-4 rounded-2xl bg-[#f0f3ff] border border-[#bbcabf]/20"
+                                >
+                                  <div className="flex justify-between gap-4 items-start">
+                                    <div>
+                                      <h5 className="text-sm font-extrabold text-[#151c27]">{getDetectionName(detection)}</h5>
+                                      <p className="text-xs font-semibold text-[#3c4a42] mt-1">
+                                        YOLO class: {detection.class_name} - {formatConfidence(detection.confidence)}%
+                                      </p>
+                                      {detection.nutrition?.matched === false && detection.nutrition?.message && (
+                                        <p className="text-xs text-[#ba1a1a] font-semibold mt-2">{detection.nutrition.message}</p>
+                                      )}
+                                    </div>
+                                    <div className="text-right shrink-0">
+                                      <span className="block text-sm font-extrabold text-[#855300]">
+                                        {calories !== null ? `${calories} KCAL` : 'Chưa có kcal'}
+                                      </span>
+                                      {minCalories !== null && maxCalories !== null && (
+                                        <span className="block text-[11px] text-[#3c4a42] font-semibold mt-1">
+                                          {minCalories} - {maxCalories} KCAL
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })
                           )}
                         </div>
 
