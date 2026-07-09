@@ -1,266 +1,80 @@
 # VietFood AI Web Demo
 
-## 1. Giới thiệu dự án
+## 1. Giới thiệu
 
-**VietFood AI Web Demo** là hệ thống web ứng dụng trí tuệ nhân tạo nhằm nhận dạng món ăn Việt Nam từ hình ảnh và dự đoán lượng calo tương ứng. Người dùng sau khi đăng ký hoặc đăng nhập có thể upload ảnh món ăn lên giao diện web. Backend sẽ sử dụng mô hình YOLO đã huấn luyện sẵn để nhận dạng món ăn trong ảnh, sau đó tra cứu dữ liệu dinh dưỡng từ file calories mapping và trả kết quả về frontend.
+**VietFood AI Web Demo** là hệ thống web dùng AI để nhận dạng món ăn Việt Nam từ hình ảnh và dự đoán lượng calo tương ứng. Người dùng đăng nhập/đăng ký, upload ảnh món ăn, hệ thống dùng mô hình YOLO `best.pt` để nhận dạng và trả về thông tin calo.
 
-Dự án được xây dựng theo hướng demo học tập, nghiên cứu và trình bày đồ án. Hệ thống tập trung vào luồng nghiệp vụ chính:
+## 2. Công nghệ sử dụng
+
+* **Frontend:** TypeScript, HTML/CSS, Node.js
+* **Backend:** Python, FastAPI, Uvicorn
+* **AI/ML:** Ultralytics YOLO, model `best.pt`
+* **Xử lý dữ liệu:** Pandas, CSV/JSON/YAML calories mapping
+* **Database:** Chưa sử dụng database server
+
+## 3. Chức năng chính
+
+* Đăng ký/đăng nhập demo.
+* Chặn người chưa đăng nhập upload ảnh/dự đoán calo.
+* Upload ảnh món ăn.
+* Nhận dạng món ăn bằng YOLO.
+* Tra cứu calories theo món ăn.
+* Hiển thị tên món, độ tin cậy, calories, khoảng calories và ảnh annotated.
+* Lưu/xem lịch sử dự đoán ở mức demo frontend.
+
+## 4. Luồng hoạt động
 
 ```text
 Đăng nhập/Đăng ký
 → Upload ảnh món ăn
-→ Backend nhận ảnh
-→ YOLO nhận dạng món ăn
-→ Tra cứu calories
-→ Trả kết quả về frontend
-→ Hiển thị tên món, độ tin cậy, calories và ảnh annotated
-```
-
-## 2. Mục tiêu dự án
-
-Dự án hướng đến các mục tiêu chính:
-
-- Nhận dạng món ăn Việt Nam từ ảnh bằng mô hình YOLO.
-- Ước tính lượng calo dựa trên dữ liệu calories đã chuẩn bị sẵn.
-- Cung cấp giao diện web dễ sử dụng, hiện đại và trực quan.
-- Cho phép người dùng đăng nhập/đăng ký ở mức demo frontend trước khi sử dụng chức năng dự đoán.
-- Hiển thị kết quả nhận dạng gồm tên món, độ tin cậy, lượng calo, khoảng calo và ảnh đã đánh dấu đối tượng.
-- Tạo nền tảng để mở rộng thành hệ thống quản lý dinh dưỡng hoặc ứng dụng di động/PWA trong tương lai.
-
-## 3. Công nghệ sử dụng
-
-### Frontend
-
-- TypeScript
-- HTML/CSS
-- Node.js
-- Giao diện responsive, hỗ trợ sử dụng trên trình duyệt máy tính và điện thoại
-- Auth demo bằng `localStorage`
-
-### Backend
-
-- Python
-- FastAPI
-- Uvicorn
-- Pillow
-- NumPy
-- Pandas
-
-### AI/ML
-
-- Ultralytics YOLO
-- Model nhận dạng: `best.pt`
-
-### Dữ liệu
-
-- CSV/JSON/YAML calories mapping
-- Không sử dụng database server trong phiên bản hiện tại
-
-## 4. Chức năng chính
-
-### 4.1. Đăng ký/Đăng nhập demo
-
-Hệ thống có nghiệp vụ đăng nhập/đăng ký ở mức demo frontend.
-
-Người dùng chưa đăng nhập:
-
-- Không được upload ảnh.
-- Không được bấm nhận diện calo.
-- Không nhìn thấy các mục chức năng chính như “Nhận diện” và “Lịch sử”.
-- Khi thao tác dự đoán, hệ thống hiển thị thông báo yêu cầu đăng nhập/đăng ký.
-
-Người dùng đã đăng nhập:
-
-- Được truy cập chức năng nhận diện.
-- Được upload ảnh món ăn.
-- Được gọi backend YOLO thật để dự đoán calo.
-- Được xem kết quả nhận dạng và lịch sử dự đoán trong giao diện.
-
-> Lưu ý: Auth hiện tại chỉ là demo frontend. Backend `/predict` hiện vẫn mở để phục vụ demo local. Để bảo mật thật, backend cần bổ sung xác thực token/session.
-
-### 4.2. Upload ảnh món ăn
-
-Người dùng có thể chọn hoặc kéo thả ảnh món ăn vào giao diện. Frontend thực hiện kiểm tra cơ bản:
-
-- Chỉ nhận file ảnh.
-- Có giới hạn dung lượng hợp lý.
-- Hiển thị ảnh preview trước khi nhận diện.
-- Chặn thao tác nếu người dùng chưa đăng nhập.
-
-### 4.3. Nhận dạng món ăn bằng YOLO
-
-Frontend gửi ảnh thật sang backend bằng `FormData`:
-
-```ts
-const formData = new FormData();
-formData.append("file", selectedFile);
-
-const response = await fetch("http://127.0.0.1:8000/predict", {
-  method: "POST",
-  body: formData,
-});
-```
-
-Backend FastAPI nhận ảnh, đọc ảnh bằng Pillow/OpenCV hoặc thư viện xử lý ảnh tương ứng, sau đó chạy mô hình YOLO `best.pt`.
-
-### 4.4. Tra cứu calories
-
-Sau khi YOLO phát hiện món ăn, backend sẽ map class name hoặc class ID sang dữ liệu calories tương ứng. Kết quả dinh dưỡng có thể gồm:
-
-- Tên món tiếng Việt.
-- Mã món ăn.
-- Calories ước tính cho một khẩu phần.
-- Calories tối thiểu.
-- Calories tối đa.
-- Trạng thái có match dữ liệu calories hay không.
-
-### 4.5. Hiển thị kết quả
-
-Frontend hiển thị:
-
-- Ảnh gốc hoặc ảnh preview.
-- Ảnh annotated nếu backend trả về `annotated_image_base64`.
-- Danh sách món được phát hiện.
-- Tên món.
-- Độ tin cậy.
-- Calories ước tính.
-- Khoảng calories.
-- Tổng calories nếu có nhiều món.
-
-### 4.6. Lịch sử dự đoán
-
-Frontend có giao diện lịch sử dự đoán ở mức demo. Khi người dùng nhận diện thành công, hệ thống có thể lưu lại kết quả dự đoán trong state/localStorage tùy cấu hình hiện tại.
-
-## 5. Luồng nghiệp vụ hệ thống
-
-### 5.1. Luồng người dùng chưa đăng nhập
-
-```text
-Mở ứng dụng
-→ Hiển thị trang đăng nhập/đăng ký
-→ Ẩn menu “Nhận diện”, “Lịch sử”, “Cài đặt”
-→ Người dùng chưa thể upload ảnh
-→ Nếu cố bấm nhận diện thì hệ thống yêu cầu đăng nhập
-```
-
-### 5.2. Luồng người dùng đã đăng nhập
-
-```text
-Đăng nhập thành công
-→ Hiển thị menu chính
-→ Chọn “Nhận diện”
-→ Upload ảnh món ăn
 → Frontend gửi ảnh đến backend /predict
-→ Backend YOLO nhận dạng
+→ Backend chạy YOLO nhận dạng món ăn
 → Backend tra cứu calories
 → Frontend hiển thị kết quả
-→ Có thể lưu vào lịch sử
 ```
 
-### 5.3. Luồng đăng xuất
-
-```text
-Người dùng bấm đăng xuất
-→ Xóa trạng thái đăng nhập
-→ Reset ảnh upload và kết quả nhận diện
-→ Quay về trang đăng nhập
-→ Ẩn menu chính
-```
-
-## 6. Cấu trúc thư mục tham khảo
-
-Cấu trúc có thể khác một chút tùy phiên bản dự án hiện tại, nhưng về tổng thể gồm:
+## 5. Cấu trúc thư mục chính
 
 ```text
 dudoancalories/
-│
 ├── backend/
 │   ├── app.py
 │   ├── best.pt
 │   ├── run_backend.bat
-│   ├── requirements.txt
-│   ├── data/
-│   │   ├── calories.csv
-│   │   ├── calories.json
-│   │   └── mapping.yaml
 │   └── tests/
 │
 ├── frontend/
-│   ├── src/
-│   │   └── App.tsx
+│   ├── src/App.tsx
 │   ├── server.ts
-│   ├── package.json
-│   ├── tsconfig.json
-│   └── public/
+│   └── package.json
 │
 ├── test_images/
-│   └── test_pho.jfif
-│
 └── README.md
 ```
 
-## 7. Yêu cầu môi trường
+## 6. Cách chạy dự án
 
-### 7.1. Backend
-
-Cần cài:
-
-- Python 3.10 trở lên
-- pip
-- Virtual environment
-- Các package trong `requirements.txt`
-
-### 7.2. Frontend
-
-Cần cài:
-
-- Node.js
-- npm
-
-Khuyến nghị dùng Node.js phiên bản mới, ví dụ Node.js 20 trở lên.
-
-## 8. Cài đặt và chạy dự án
-
-### 8.1. Chạy backend
-
-Mở PowerShell terminal thứ nhất:
+### Chạy backend
 
 ```powershell
 cd D:\DU-AN\dudoancalories\backend
 .\run_backend.bat
 ```
 
-Hoặc chạy trực tiếp bằng Uvicorn:
+Hoặc:
 
 ```powershell
 cd D:\DU-AN\dudoancalories\backend
 .\.venv\Scripts\python.exe -m uvicorn app:app --reload --host 127.0.0.1 --port 8000
 ```
 
-Backend chạy đúng khi thấy:
+Backend chạy tại:
 
 ```text
-Uvicorn running on http://127.0.0.1:8000
+http://127.0.0.1:8000
 ```
 
-Kiểm tra backend:
-
-```text
-http://127.0.0.1:8000/health
-```
-
-Response mong muốn:
-
-```json
-{
-  "model_loaded": true,
-  "calories_loaded": true
-}
-```
-
-### 8.2. Chạy frontend
-
-Mở PowerShell terminal thứ hai:
+### Chạy frontend
 
 ```powershell
 cd D:\DU-AN\dudoancalories\frontend
@@ -273,55 +87,15 @@ Frontend chạy tại:
 http://127.0.0.1:3000
 ```
 
-### 8.3. Thứ tự chạy đúng
+## 7. API chính
 
-```text
-Bước 1: Chạy backend ở port 8000
-Bước 2: Chạy frontend ở port 3000
-Bước 3: Mở http://127.0.0.1:3000
-Bước 4: Đăng nhập hoặc đăng ký
-Bước 5: Upload ảnh món ăn
-Bước 6: Bấm nhận diện
-Bước 7: Xem kết quả calories
-```
-
-## 9. API backend
-
-### 9.1. Health check
+### Kiểm tra backend
 
 ```http
 GET /health
 ```
 
-Mục đích:
-
-- Kiểm tra backend có chạy không.
-- Kiểm tra model YOLO đã load chưa.
-- Kiểm tra dữ liệu calories đã load chưa.
-
-Ví dụ:
-
-```text
-GET http://127.0.0.1:8000/health
-```
-
-### 9.2. Danh sách class
-
-```http
-GET /classes
-```
-
-Mục đích:
-
-- Xem danh sách class mà YOLO có thể nhận dạng.
-
-Ví dụ:
-
-```text
-GET http://127.0.0.1:8000/classes
-```
-
-### 9.3. Dự đoán món ăn
+### Dự đoán món ăn
 
 ```http
 POST /predict
@@ -329,332 +103,63 @@ POST /predict
 
 Request:
 
-- Content-Type: `multipart/form-data`
-- Field ảnh: `file`
-
-Ví dụ bằng curl:
-
-```bash
-curl -X POST "http://127.0.0.1:8000/predict" \
-  -F "file=@test_images/test_pho.jfif"
-```
-
-Response mẫu:
-
-```json
-{
-  "success": true,
-  "filename": "test_pho.jfif",
-  "message": "Nhận dạng thành công.",
-  "detections": [
-    {
-      "class_id": 46,
-      "class_name": "Pho",
-      "confidence": 0.8631,
-      "nutrition": {
-        "matched": true,
-        "food_id": "pho_bo",
-        "food_name_vi": "Phở bò",
-        "calories_per_serving_selected": 410,
-        "calories_min_final": 350,
-        "calories_max_final": 500
-      }
-    }
-  ],
-  "annotated_image_base64": "data:image/jpeg;base64,..."
-}
-```
-
-## 10. CORS
-
-Backend hiện cho phép frontend gọi API từ các origin local:
-
 ```text
-http://127.0.0.1:3000
-http://localhost:3000
+Content-Type: multipart/form-data
+Field ảnh: file
 ```
 
-Nếu muốn chạy trên điện thoại qua cùng Wi-Fi, cần thêm IP máy tính vào CORS, ví dụ:
+Response gồm:
 
-```text
-http://192.168.1.10:3000
-```
+* Tên món ăn
+* Độ tin cậy
+* Calories
+* Khoảng calories
+* Ảnh annotated
+* Danh sách món được phát hiện
 
-Và frontend cần gọi backend bằng IP máy tính thay vì `127.0.0.1`.
+## 8. Kiểm thử
 
-## 11. Chạy trên điện thoại trong cùng Wi-Fi
-
-### 11.1. Lấy IP máy tính
-
-```powershell
-ipconfig
-```
-
-Ví dụ IP máy tính:
-
-```text
-192.168.1.10
-```
-
-### 11.2. Chạy backend cho thiết bị khác truy cập
-
-```powershell
-cd D:\DU-AN\dudoancalories\backend
-.\.venv\Scripts\python.exe -m uvicorn app:app --reload --host 0.0.0.0 --port 8000
-```
-
-### 11.3. Sửa API frontend
-
-Không dùng:
-
-```ts
-http://127.0.0.1:8000
-```
-
-Mà dùng:
-
-```ts
-http://192.168.1.10:8000
-```
-
-### 11.4. Mở trên điện thoại
-
-Điện thoại và laptop phải dùng cùng Wi-Fi.
-
-```text
-http://192.168.1.10:3000
-```
-
-## 12. Kiểm thử
-
-### 12.1. Test backend
+### Test backend
 
 ```powershell
 cd D:\DU-AN\dudoancalories\backend
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-Kết quả mong muốn:
-
-```text
-4 passed
-```
-
-### 12.2. Test frontend build
+### Test frontend
 
 ```powershell
 cd D:\DU-AN\dudoancalories\frontend
 npm run build
 ```
 
-Kết quả mong muốn:
+## 9. Trạng thái hiện tại
 
-```text
-build thành công
-```
+* Backend FastAPI chạy được.
+* Model YOLO `best.pt` load thành công.
+* Endpoint `/predict` nhận ảnh và trả kết quả.
+* Frontend đã gọi đúng backend `/predict`.
+* Không còn dùng Gemini/mock trong luồng nhận diện chính.
+* Người chưa đăng nhập bị chặn upload/dự đoán.
+* Trang đăng nhập/đăng ký đã ẩn menu “Nhận diện”, “Lịch sử”, “Cài đặt”.
 
-### 12.3. Test luồng nhận diện
+## 10. Giới hạn hiện tại
 
-Dữ liệu test:
+* Auth mới ở mức demo frontend.
+* Backend `/predict` chưa có bảo mật token/session.
+* Chưa có database lưu người dùng và lịch sử thật.
+* Calories chỉ là giá trị ước tính.
+* Chưa triển khai public server hoặc app mobile thật.
 
-```text
-test_images/test_pho.jfif
-```
+## 11. Hướng phát triển
 
-Luồng test:
+* Thêm đăng nhập/đăng ký thật ở backend.
+* Lưu lịch sử dự đoán vào database.
+* Bảo vệ API bằng token/session.
+* Tối ưu giao diện mobile.
+* Phát triển thành PWA hoặc app Android.
+* Huấn luyện thêm dữ liệu món ăn Việt Nam.
 
-```text
-1. Chạy backend
-2. Chạy frontend
-3. Mở http://127.0.0.1:3000
-4. Đăng nhập/đăng ký
-5. Upload ảnh test_pho.jfif
-6. Bấm nhận diện
-7. Mở DevTools → Network
-8. Kiểm tra request POST http://127.0.0.1:8000/predict
-9. Kiểm tra payload multipart/form-data, field file
-10. Kiểm tra giao diện hiển thị Phở bò, confidence, calories và ảnh annotated
-```
+## 12. Kết luận
 
-## 13. Lỗi thường gặp
-
-### 13.1. Lỗi port 3000 đã được sử dụng
-
-Thông báo:
-
-```text
-EADDRINUSE: address already in use 0.0.0.0:3000
-```
-
-Nguyên nhân:
-
-- Frontend đang chạy sẵn.
-- Bạn chạy `npm run dev` thêm một lần nữa.
-
-Cách xử lý:
-
-```powershell
-netstat -ano | findstr :3000
-taskkill /PID <PID> /F
-npm run dev
-```
-
-Hoặc chỉ cần mở trình duyệt:
-
-```text
-http://127.0.0.1:3000
-```
-
-### 13.2. Lỗi port 24678 đã được sử dụng
-
-Thông báo:
-
-```text
-WebSocket server error: Port 24678 is already in use
-```
-
-Cách xử lý:
-
-```powershell
-netstat -ano | findstr :24678
-taskkill /PID <PID> /F
-```
-
-### 13.3. Frontend không gọi được backend
-
-Kiểm tra:
-
-- Backend đã chạy chưa?
-- Backend có chạy đúng port 8000 không?
-- Frontend có gọi đúng `http://127.0.0.1:8000/predict` không?
-- CORS đã cho phép `http://127.0.0.1:3000` chưa?
-- Có restart backend sau khi sửa CORS chưa?
-
-### 13.4. Điện thoại không gọi được backend
-
-Nguyên nhân thường gặp:
-
-- Backend đang chạy với `127.0.0.1`, chỉ máy tính truy cập được.
-- Frontend đang gọi `127.0.0.1`, trên điện thoại sẽ hiểu là chính điện thoại.
-- Điện thoại và laptop không cùng Wi-Fi.
-- Firewall Windows chặn port.
-
-Cách xử lý:
-
-- Chạy backend với `--host 0.0.0.0`.
-- Đổi API URL sang IP máy tính.
-- Thêm IP frontend vào CORS.
-- Cho phép firewall truy cập port 8000 và 3000 nếu cần.
-
-### 13.5. Upload ảnh không có kết quả
-
-Kiểm tra:
-
-- File upload có phải ảnh không?
-- Backend `/predict` có trả response không?
-- Model YOLO `best.pt` đã load chưa?
-- File calories mapping đã load chưa?
-- Class YOLO có được map sang calories không?
-- Frontend có đọc đúng field `detections`, `nutrition`, `annotated_image_base64` không?
-
-## 14. Trạng thái hiện tại của dự án
-
-Dự án hiện đã hoàn thành các phần chính:
-
-- Backend FastAPI chạy được.
-- Model YOLO `best.pt` load được.
-- File calories mapping load được.
-- Endpoint `/predict` nhận ảnh và trả kết quả.
-- Frontend gọi đúng backend `/predict`.
-- Không còn dùng Gemini/mock trong luồng nhận diện chính.
-- Người chưa đăng nhập bị chặn upload/dự đoán ở frontend.
-- Trang đăng nhập/đăng ký đã ẩn menu “Nhận diện”, “Lịch sử”, “Cài đặt”.
-- Frontend build thành công.
-- Backend test thành công với `pytest`.
-
-## 15. Giới hạn hiện tại
-
-Phiên bản hiện tại vẫn có một số giới hạn:
-
-- Auth mới ở mức demo frontend, chưa có xác thực backend thật.
-- Backend `/predict` vẫn có thể bị gọi trực tiếp bằng Postman/curl.
-- Chưa có database để lưu người dùng và lịch sử dự đoán thật.
-- Calories là giá trị ước tính theo mapping, chưa tính chính xác theo khối lượng thực tế trong ảnh.
-- Chưa có phân tích khẩu phần, cân nặng món ăn hoặc số lượng serving.
-- Chưa triển khai server public.
-- Chưa đóng gói thành app Android/iOS thật.
-- Chưa có hệ thống quản trị dữ liệu món ăn/calories.
-
-## 16. Hướng phát triển tiếp theo
-
-Có thể mở rộng dự án theo các hướng sau:
-
-### 16.1. Xác thực người dùng thật
-
-- Thêm backend auth.
-- Đăng ký/đăng nhập bằng database.
-- Hash mật khẩu.
-- JWT token hoặc session.
-- Bảo vệ endpoint `/predict`.
-
-### 16.2. Lưu lịch sử dự đoán
-
-- Lưu ảnh, kết quả nhận dạng, calories, thời gian dự đoán.
-- Cho người dùng xem lại lịch sử.
-- Thống kê calories theo ngày/tuần/tháng.
-
-### 16.3. Quản lý dữ liệu món ăn
-
-- Thêm trang admin quản lý món ăn.
-- Thêm/sửa/xóa dữ liệu calories.
-- Import/export CSV.
-
-### 16.4. Cải thiện AI
-
-- Huấn luyện thêm dữ liệu món ăn Việt Nam.
-- Tăng số lượng class.
-- Cải thiện độ chính xác.
-- Nhận dạng nhiều món trong một ảnh.
-- Ước lượng khẩu phần ăn.
-
-### 16.5. PWA hoặc mobile app
-
-- Thêm manifest để cài lên màn hình chính.
-- Tối ưu giao diện mobile.
-- Đóng gói bằng Capacitor nếu muốn xuất APK Android.
-
-## 17. Ghi chú dành cho demo
-
-Khi demo, cần chạy đúng thứ tự:
-
-```powershell
-# Terminal 1 - Backend
-cd D:\DU-AN\dudoancalories\backend
-.\.venv\Scripts\python.exe -m uvicorn app:app --reload --host 127.0.0.1 --port 8000
-```
-
-```powershell
-# Terminal 2 - Frontend
-cd D:\DU-AN\dudoancalories\frontend
-npm run dev
-```
-
-Sau đó mở:
-
-```text
-http://127.0.0.1:3000
-```
-
-Demo luồng chính:
-
-```text
-Đăng nhập
-→ Upload ảnh món ăn
-→ Bấm nhận diện
-→ Backend YOLO xử lý
-→ Hiển thị tên món, calories, confidence và ảnh annotated
-```
-
-## 18. Kết luận
-
-**VietFood AI Web Demo** là hệ thống minh họa việc kết hợp giữa web application và AI computer vision trong lĩnh vực dinh dưỡng. Dự án cho phép người dùng upload ảnh món ăn Việt Nam, nhận dạng món ăn bằng YOLO và xem lượng calo ước tính. Hệ thống hiện đã có luồng frontend-backend hoạt động, kiểm soát đăng nhập ở mức demo và có thể sử dụng để trình bày đồ án hoặc tiếp tục mở rộng thành sản phẩm hoàn chỉnh hơn.
+**VietFood AI Web Demo** là hệ thống demo nhận dạng món ăn Việt Nam bằng YOLO và ước tính calories từ hình ảnh. Dự án đã có luồng frontend-backend hoạt động, phù hợp để trình bày đồ án và tiếp tục mở rộng thành ứng dụng quản lý dinh dưỡng hoàn chỉnh hơn.
