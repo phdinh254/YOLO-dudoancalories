@@ -2,13 +2,29 @@
 
 Demo web nhận dạng món ăn Việt Nam từ ảnh bằng YOLO và ước tính calories tham khảo theo khẩu phần chuẩn.
 
+## Phạm vi hiện tại
+
+* Người dùng mở app là vào thẳng giao diện nhận dạng.
+* Không có màn hình đăng nhập/đăng ký.
+* Không có database người dùng.
+* Không có token, JWT hoặc session.
+* Lịch sử nhận dạng chỉ lưu cục bộ trên trình duyệt bằng `localStorage`.
+
+Luồng chính:
+
+```text
+Upload ảnh món ăn
+→ Backend YOLO nhận dạng
+→ Tra cứu calories mapping
+→ Frontend hiển thị calo tham khảo và ảnh annotated
+```
+
 ## Công nghệ
 
 * Frontend: React, TypeScript, Vite, Node.js.
 * Backend: Python, FastAPI, Uvicorn.
 * AI/ML: Ultralytics YOLO, model `backend/models/best.pt`.
 * Dữ liệu: `data.yaml`, CSV calories, JSON class-calorie mapping.
-* Auth: demo frontend bằng `localStorage`, chưa có database/server session.
 
 ## Chạy backend
 
@@ -37,10 +53,16 @@ Mở:
 http://127.0.0.1:3000
 ```
 
-Nếu port `3000` đang bị chiếm, đóng tiến trình cũ hoặc chạy PowerShell:
+Nếu port `3000` đang bị chiếm, đóng tiến trình cũ hoặc chạy port khác:
 
 ```powershell
-Get-NetTCPConnection -LocalPort 3000 | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object { Stop-Process -Id $_ }
+set PORT=3001&& npm run dev
+```
+
+Nếu frontend cần gọi backend qua IP LAN hoặc URL khác, tạo `frontend/.env`:
+
+```text
+VITE_BACKEND_PREDICT_URL=http://192.168.x.x:8000/predict
 ```
 
 ## Endpoint chính
@@ -100,8 +122,7 @@ Response mẫu:
 * Hiển thị tổng calories chỉ là tổng tham khảo.
 * Báo rõ “Chưa có dữ liệu calories cho món này.” khi mapping thiếu.
 * Báo rõ khi không nhận dạng được món ăn và gợi ý dùng ảnh rõ/đủ sáng.
-* Người chưa đăng nhập không thấy menu chức năng chính và không upload/nhận dạng được.
-* Lịch sử không còn seed dữ liệu mẫu; chỉ lưu kết quả người dùng thực sự lưu.
+* Lịch sử không seed dữ liệu mẫu; chỉ lưu kết quả người dùng thực sự lưu.
 
 ## Giới hạn hệ thống
 
@@ -112,8 +133,17 @@ Response mẫu:
 * Kết quả có thể sai nếu ảnh mờ, tối, món ăn bị che khuất hoặc không thuộc class đã train.
 * Calories chỉ là ước tính tham khảo theo khẩu phần chuẩn.
 * Hệ thống chưa đo được khối lượng thực tế từ ảnh 2D, nên không thể tính calories chính xác tuyệt đối.
-* Auth hiện tại là demo frontend bằng `localStorage`, chưa có bảo mật token/session ở backend.
-* Lịch sử hiện lưu ở trình duyệt, chưa đồng bộ theo database người dùng thật.
+* Lịch sử hiện lưu cục bộ trên trình duyệt, chưa đồng bộ theo tài khoản.
+
+## Hướng phát triển
+
+Trong phiên bản mở rộng, hệ thống có thể bổ sung:
+
+* Database lưu người dùng.
+* Đăng ký/đăng nhập thật.
+* Hash mật khẩu bằng bcrypt.
+* JWT/session.
+* Lưu lịch sử nhận dạng theo tài khoản.
 
 ## Kiểm thử
 
@@ -146,7 +176,7 @@ with TestClient(app) as client:
         response = client.post("/predict", files={"file": (image_path.name, f, "image/jpeg")})
     print(response.status_code)
     print(response.json()["message"])
-'@ | .\backend\.venv\Scripts\python.exe -
+'@ | .\.venv\Scripts\python.exe -
 ```
 
 ## Kết luận

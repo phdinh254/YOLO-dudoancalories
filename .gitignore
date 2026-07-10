@@ -4,13 +4,15 @@ __pycache__/
 *.pyo
 *.pyd
 backend/__pycache__/
-
-# Logs
-*.log
+backend/.venv/
 
 # Node
 frontend/node_modules/
 frontend/dist/
 
-# Virtual Environment
-backend/.venv/
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

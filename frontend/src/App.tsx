@@ -17,11 +17,6 @@ interface FoodLog {
   filterGroup: 'today' | 'week' | 'month';
 }
 
-interface User {
-  name: string;
-  email: string;
-}
-
 interface Toast {
   id: string;
   message: string;
@@ -66,7 +61,7 @@ interface RecognitionResult extends Partial<FoodLog> {
   totalCalories: number;
 }
 
-const BACKEND_PREDICT_URL = 'http://127.0.0.1:8000/predict';
+const BACKEND_PREDICT_URL = import.meta.env.VITE_BACKEND_PREDICT_URL || 'http://127.0.0.1:8000/predict';
 const REQUEST_TIMEOUT_MS = 30000;
 const LOW_CONFIDENCE_THRESHOLD = 0.5;
 const CALORIE_ESTIMATION_NOTE =
@@ -131,19 +126,8 @@ const buildRecognitionResult = (data: YoloPredictResponse): RecognitionResult =>
 
 export default function App() {
   const [tab, setTab] = useState<'recognize' | 'history' | 'settings'>('recognize');
-  const [authScreen, setAuthScreen] = useState<'login' | 'register' | null>(null);
-
-  // Auth inputs
-  const [loginEmail, setLoginEmail] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
-  const [signupName, setSignupName] = useState('');
-  const [signupEmail, setSignupEmail] = useState('');
-  const [signupPassword, setSignupPassword] = useState('');
-  const [signupConfirm, setSignupConfirm] = useState('');
-  const [signupAgree, setSignupAgree] = useState(false);
 
   // App States
-  const [user, setUser] = useState<User | null>(null);
   const [image, setImage] = useState<string | null>(null);
   const [mimeType, setMimeType] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -154,25 +138,11 @@ export default function App() {
   const [activeFilter, setActiveFilter] = useState<'today' | 'week' | 'month'>('today');
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [selectedHistoryItem, setSelectedHistoryItem] = useState<FoodLog | null>(null);
-  const [showPassword, setShowPassword] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Load User & History from LocalStorage
+  // Load local browser history only. This demo has no database or auth session.
   useEffect(() => {
-    const storedUser = localStorage.getItem('vietfood_user');
-    if (storedUser) {
-      try {
-        setUser(JSON.parse(storedUser));
-      } catch {
-        localStorage.removeItem('vietfood_user');
-        setAuthScreen('login');
-      }
-    } else {
-      // Prompt login by default to match mockup 4/5
-      setAuthScreen('login');
-    }
-
     const storedHistory = localStorage.getItem('vietfood_history');
     if (storedHistory) {
       try {
@@ -196,80 +166,8 @@ export default function App() {
     }, 4000);
   };
 
-  useEffect(() => {
-    if (!user && !authScreen) {
-      setTab('recognize');
-      setAuthScreen('login');
-    }
-  }, [user, authScreen]);
-
-  const requireLogin = () => {
-    if (user) return true;
-    showToast('Vui lòng đăng nhập hoặc đăng ký tài khoản để sử dụng chức năng nhận dạng món ăn.', 'error');
-    setAuthScreen('login');
-    return false;
-  };
-
-  // Auth Operations
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!loginEmail || !loginPassword) {
-      showToast('Vui lòng điền đầy đủ thông tin đăng nhập', 'error');
-      return;
-    }
-    // Simple verification - accept anything but defaults nicely
-    const mockUser: User = {
-      name: loginEmail.split('@')[0] === 'example' ? 'Nguyễn Văn A' : loginEmail.split('@')[0],
-      email: loginEmail,
-    };
-    setUser(mockUser);
-    localStorage.setItem('vietfood_user', JSON.stringify(mockUser));
-    setTab('recognize');
-    setAuthScreen(null);
-    showToast('Đăng nhập thành công! Chào mừng ' + mockUser.name, 'success');
-  };
-
-  const handleRegister = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!signupName || !signupEmail || !signupPassword || !signupConfirm) {
-      showToast('Vui lòng điền đầy đủ các trường thông tin', 'error');
-      return;
-    }
-    if (signupPassword !== signupConfirm) {
-      showToast('Xác nhận mật khẩu không trùng khớp', 'error');
-      return;
-    }
-    if (!signupAgree) {
-      showToast('Vui lòng đồng ý với Điều khoản dịch vụ', 'error');
-      return;
-    }
-
-    const newUser: User = {
-      name: signupName,
-      email: signupEmail,
-    };
-    setUser(newUser);
-    localStorage.setItem('vietfood_user', JSON.stringify(newUser));
-    setTab('recognize');
-    setAuthScreen(null);
-    showToast('Tạo tài khoản thành công! Chào mừng ' + signupName, 'success');
-  };
-
-  const handleLogout = () => {
-    setUser(null);
-    localStorage.removeItem('vietfood_user');
-    resetUpload();
-    setTab('recognize');
-    setAuthScreen('login');
-    showToast('Đã đăng xuất tài khoản', 'info');
-  };
-
   // File handling
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!requireLogin()) {
-      e.target.value = '';
-      return;
-    }
     const file = e.target.files?.[0];
     if (file) {
       processFile(file);
@@ -304,7 +202,6 @@ export default function App() {
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    if (!requireLogin()) return;
     const file = e.dataTransfer.files?.[0];
     if (file) {
       processFile(file);
@@ -313,8 +210,6 @@ export default function App() {
 
   // Call API for Food Recognition
   const handleRecognize = async () => {
-    if (!requireLogin()) return;
-
     if (!selectedFile || !image || !mimeType) {
       showToast('Vui lòng tải ảnh món ăn trước', 'error');
       return;
@@ -418,7 +313,6 @@ export default function App() {
     if (activeFilter === 'week') return log.filterGroup === 'today' || log.filterGroup === 'week' || log.date.includes('Hôm nay') || log.date.includes('Hôm qua');
     return true; // Monthly gets all
   });
-  const showMainMenu = Boolean(user && !authScreen);
 
   return (
     <div className="min-h-screen bg-[#f9f9ff] text-[#151c27] flex flex-col font-sans pb-24 md:pb-0">
@@ -448,12 +342,7 @@ export default function App() {
         <div
           className="flex items-center gap-2 cursor-pointer"
           onClick={() => {
-            if (user) {
-              setTab('recognize');
-              setAuthScreen(null);
-            } else {
-              setAuthScreen('login');
-            }
+            setTab('recognize');
           }}
         >
           <span className="material-symbols-outlined text-[#006c49] text-3xl font-bold">restaurant</span>
@@ -462,249 +351,44 @@ export default function App() {
 
         {/* Desktop Navigation */}
         <nav className="hidden md:flex items-center gap-8">
-          {showMainMenu && (
-            <>
-              <button
-                onClick={() => { setTab('recognize'); setAuthScreen(null); }}
-                className={`font-medium text-sm flex items-center gap-1.5 py-1 transition-all ${
-                  tab === 'recognize' ? 'text-[#006c49] border-b-2 border-[#006c49]' : 'text-[#3c4a42] hover:text-[#006c49]'
-                }`}
-              >
-                <span className="material-symbols-outlined text-[20px]">photo_camera</span> Nhận diện
-              </button>
-              <button
-                onClick={() => { setTab('history'); setAuthScreen(null); }}
-                className={`font-medium text-sm flex items-center gap-1.5 py-1 transition-all ${
-                  tab === 'history' ? 'text-[#006c49] border-b-2 border-[#006c49]' : 'text-[#3c4a42] hover:text-[#006c49]'
-                }`}
-              >
-                <span className="material-symbols-outlined text-[20px]">history</span> Lịch sử
-              </button>
-              <button
-                onClick={() => { setTab('settings'); setAuthScreen(null); }}
-                className={`font-medium text-sm flex items-center gap-1.5 py-1 transition-all ${
-                  tab === 'settings' ? 'text-[#006c49] border-b-2 border-[#006c49]' : 'text-[#3c4a42] hover:text-[#006c49]'
-                }`}
-              >
-                <span className="material-symbols-outlined text-[20px]">settings</span> Cài đặt
-              </button>
-            </>
-          )}
-          {!user && !authScreen && (
-            <button
-              onClick={() => setAuthScreen('login')}
-              className="font-bold text-sm bg-[#006c49] text-white px-5 py-2 rounded-xl hover:brightness-110 active:scale-95 transition-all shadow-sm"
-            >
-              Đăng nhập
-            </button>
-          )}
+          <button
+            onClick={() => setTab('recognize')}
+            className={`font-medium text-sm flex items-center gap-1.5 py-1 transition-all ${
+              tab === 'recognize' ? 'text-[#006c49] border-b-2 border-[#006c49]' : 'text-[#3c4a42] hover:text-[#006c49]'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[20px]">photo_camera</span> Nhận diện
+          </button>
+          <button
+            onClick={() => setTab('history')}
+            className={`font-medium text-sm flex items-center gap-1.5 py-1 transition-all ${
+              tab === 'history' ? 'text-[#006c49] border-b-2 border-[#006c49]' : 'text-[#3c4a42] hover:text-[#006c49]'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[20px]">history</span> Lịch sử
+          </button>
+          <button
+            onClick={() => setTab('settings')}
+            className={`font-medium text-sm flex items-center gap-1.5 py-1 transition-all ${
+              tab === 'settings' ? 'text-[#006c49] border-b-2 border-[#006c49]' : 'text-[#3c4a42] hover:text-[#006c49]'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[20px]">settings</span> Thông tin hệ thống
+          </button>
         </nav>
 
         {/* Mobile/Quick Actions */}
         <div className="md:hidden flex items-center gap-2">
-          {showMainMenu ? (
-            <button onClick={() => setTab('settings')} className="p-2 text-[#3c4a42] hover:text-[#006c49]">
-              <span className="material-symbols-outlined">settings</span>
-            </button>
-          ) : !authScreen ? (
-            <button onClick={() => setAuthScreen('login')} className="p-2 text-[#3c4a42]">
-              <span className="material-symbols-outlined">login</span>
-            </button>
-          ) : null}
+          <button onClick={() => setTab('settings')} className="p-2 text-[#3c4a42] hover:text-[#006c49]">
+            <span className="material-symbols-outlined">settings</span>
+          </button>
         </div>
       </header>
 
       {/* Main Container */}
       <main className="flex-grow pt-24 pb-12 px-5 md:px-12 max-w-[1200px] w-full mx-auto">
         
-        {/* Mockup Authentications */}
-        {authScreen === 'login' && (
-          <div className="flex flex-col items-center justify-center py-8 max-w-sm mx-auto fade-in">
-            {/* Logo */}
-            <div className="w-16 h-16 bg-[#006c49] text-white rounded-2xl flex items-center justify-center mb-4 shadow-md">
-              <span className="material-symbols-outlined text-4xl">restaurant</span>
-            </div>
-            <h1 className="text-3xl font-extrabold text-[#006c49] mb-8 text-center">VietFood AI</h1>
-
-            {/* Login Card */}
-            <div className="bg-white rounded-[24px] p-6 shadow-xl border border-[#bbcabf]/30 w-full">
-              <h2 className="text-2xl font-bold text-center text-[#151c27] mb-1">Chào mừng trở lại</h2>
-              <p className="text-sm text-center text-[#3c4a42] mb-6">Đăng nhập để tiếp tục hành trình dinh dưỡng của bạn</p>
-
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#3c4a42] mb-1.5">Email</label>
-                  <div className="relative">
-                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg text-[#3c4a42]">mail</span>
-                    <input
-                      type="email"
-                      required
-                      placeholder="example@email.com"
-                      value={loginEmail}
-                      onChange={(e) => setLoginEmail(e.target.value)}
-                      className="w-full pl-10 pr-4 py-3 bg-[#f0f3ff] border border-transparent rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#006c49] focus:bg-white transition-all text-[#151c27]"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#3c4a42] mb-1.5">Mật khẩu</label>
-                  <div className="relative">
-                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg text-[#3c4a42]">lock</span>
-                    <input
-                      type={showPassword ? "text" : "password"}
-                      required
-                      placeholder="••••••••"
-                      value={loginPassword}
-                      onChange={(e) => setLoginPassword(e.target.value)}
-                      className="w-full pl-10 pr-10 py-3 bg-[#f0f3ff] border border-transparent rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#006c49] focus:bg-white transition-all text-[#151c27]"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-lg text-[#3c4a42] hover:text-[#006c49]"
-                    >
-                      {showPassword ? "visibility_off" : "visibility"}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="text-right">
-                  <a href="#" onClick={(e) => {e.preventDefault(); showToast('Tính năng khôi phục mật khẩu đang phát triển', 'info');}} className="text-xs font-semibold text-[#006c49] hover:underline">
-                    Quên mật khẩu?
-                  </a>
-                </div>
-
-                <button
-                  type="submit"
-                  className="w-full bg-[#10b981] hover:brightness-110 active:scale-[0.98] text-white py-3.5 rounded-xl font-bold text-sm transition-all shadow-md mt-2"
-                >
-                  Đăng nhập
-                </button>
-              </form>
-
-              <div className="mt-6 pt-4 border-t border-[#bbcabf]/20 text-center">
-                <button onClick={() => { setAuthScreen('register'); setShowPassword(false); }} className="text-xs text-[#3c4a42]">
-                  Chưa có tài khoản? <span className="font-bold text-[#006c49] hover:underline">Đăng ký ngay</span>
-                </button>
-              </div>
-            </div>
-
-          </div>
-        )}
-
-        {authScreen === 'register' && (
-          <div className="flex flex-col items-center justify-center py-8 max-w-sm mx-auto fade-in">
-            {/* Signup Card */}
-            <div className="bg-white rounded-[24px] p-6 shadow-xl border border-[#bbcabf]/30 w-full">
-              <div className="flex items-center justify-center gap-1 text-[#006c49] mb-4">
-                <span className="material-symbols-outlined text-2xl font-bold">restaurant</span>
-                <span className="text-lg font-bold">VietFood AI</span>
-              </div>
-              <h2 className="text-2xl font-bold text-center text-[#151c27] mb-1">Tạo tài khoản mới</h2>
-              <p className="text-sm text-center text-[#3c4a42] mb-6">Bắt đầu theo dõi sức khỏe thông minh ngay hôm nay</p>
-
-              <form onSubmit={handleRegister} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#3c4a42] mb-1.5">Họ tên</label>
-                  <div className="relative">
-                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg text-[#3c4a42]">person</span>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Nguyễn Văn A"
-                      value={signupName}
-                      onChange={(e) => setSignupName(e.target.value)}
-                      className="w-full pl-10 pr-4 py-3 bg-[#f0f3ff] border border-transparent rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#006c49] focus:bg-white transition-all text-[#151c27]"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#3c4a42] mb-1.5">Email</label>
-                  <div className="relative">
-                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg text-[#3c4a42]">mail</span>
-                    <input
-                      type="email"
-                      required
-                      placeholder="example@email.com"
-                      value={signupEmail}
-                      onChange={(e) => setSignupEmail(e.target.value)}
-                      className="w-full pl-10 pr-4 py-3 bg-[#f0f3ff] border border-transparent rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#006c49] focus:bg-white transition-all text-[#151c27]"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#3c4a42] mb-1.5">Mật khẩu</label>
-                  <div className="relative">
-                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg text-[#3c4a42]">lock</span>
-                    <input
-                      type={showPassword ? "text" : "password"}
-                      required
-                      placeholder="••••••••"
-                      value={signupPassword}
-                      onChange={(e) => setSignupPassword(e.target.value)}
-                      className="w-full pl-10 pr-10 py-3 bg-[#f0f3ff] border border-transparent rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#006c49] focus:bg-white transition-all text-[#151c27]"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-lg text-[#3c4a42] hover:text-[#006c49]"
-                    >
-                      {showPassword ? "visibility_off" : "visibility"}
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#3c4a42] mb-1.5">Xác nhận mật khẩu</label>
-                  <div className="relative">
-                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg text-[#3c4a42]">history</span>
-                    <input
-                      type="password"
-                      required
-                      placeholder="••••••••"
-                      value={signupConfirm}
-                      onChange={(e) => setSignupConfirm(e.target.value)}
-                      className="w-full pl-10 pr-4 py-3 bg-[#f0f3ff] border border-transparent rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#006c49] focus:bg-white transition-all text-[#151c27]"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-2 pt-1">
-                  <input
-                    type="checkbox"
-                    id="agree"
-                    checked={signupAgree}
-                    onChange={(e) => setSignupAgree(e.target.checked)}
-                    className="mt-1 rounded text-[#006c49] focus:ring-[#006c49] h-4 w-4"
-                  />
-                  <label htmlFor="agree" className="text-xs text-[#3c4a42] leading-tight select-none">
-                    Tôi đồng ý với các <a href="#" onClick={(e) => {e.preventDefault(); showToast('Điều khoản dịch vụ', 'info');}} className="font-bold text-[#006c49] hover:underline">Điều khoản dịch vụ</a> và <a href="#" onClick={(e) => {e.preventDefault(); showToast('Chính sách bảo mật', 'info');}} className="font-bold text-[#006c49] hover:underline">Chính sách bảo mật</a>.
-                  </label>
-                </div>
-
-                <button
-                  type="submit"
-                  className="w-full bg-[#10b981] hover:brightness-110 active:scale-[0.98] text-white py-3.5 rounded-xl font-bold text-sm transition-all shadow-md flex items-center justify-center gap-2 mt-4"
-                >
-                  Đăng ký ngay <span className="material-symbols-outlined text-lg">arrow_forward</span>
-                </button>
-              </form>
-
-              <div className="mt-6 pt-4 border-t border-[#bbcabf]/20 text-center">
-                <button onClick={() => { setAuthScreen('login'); setShowPassword(false); }} className="text-xs text-[#3c4a42]">
-                  Đã có tài khoản? <span className="font-bold text-[#006c49] hover:underline">Đăng nhập</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Authenticated Screen Content */}
-        {!authScreen && (
-          <>
+        {/* Application Content */}
             {/* View Tab 1: RECOGNIZE (Nhận diện) */}
             {tab === 'recognize' && (
               <div className="fade-in">
@@ -740,7 +424,6 @@ export default function App() {
                         onDragOver={handleDragOver}
                         onDrop={handleDrop}
                         onClick={() => {
-                          if (!requireLogin()) return;
                           fileInputRef.current?.click();
                         }}
                         className="border-2 border-dashed border-[#bbcabf] hover:border-[#006c49] hover:bg-[#006c49]/5 rounded-2xl p-8 md:p-14 flex flex-col items-center justify-center text-center transition-all cursor-pointer group"
@@ -1004,12 +687,12 @@ export default function App() {
               </div>
             )}
 
-            {/* View Tab 2: HISTORY (Lịch sử) */}
+        {/* View Tab 2: HISTORY (Lịch sử) */}
             {tab === 'history' && (
               <div className="fade-in max-w-3xl mx-auto">
                 <div className="mb-6">
                   <h2 className="text-3xl font-black text-[#151c27] mb-1 leading-tight">Lịch sử nhận diện</h2>
-                  <p className="text-sm text-[#3c4a42] font-semibold">Theo dõi hành trình dinh dưỡng qua các món ăn của bạn.</p>
+                  <p className="text-sm text-[#3c4a42] font-semibold">Lịch sử được lưu cục bộ trên trình duyệt hiện tại.</p>
                 </div>
 
                 {/* Filter chips */}
@@ -1095,77 +778,64 @@ export default function App() {
               </div>
             )}
 
-            {/* View Tab 3: SETTINGS (Cài đặt) */}
-            {tab === 'settings' && user && (
-              <div className="fade-in max-w-lg mx-auto bg-white rounded-3xl p-6 border border-[#bbcabf]/20 shadow-md">
-                <h2 className="text-2xl font-extrabold text-[#151c27] mb-6">Thông tin tài khoản</h2>
-                
-                <div className="flex items-center gap-4 mb-8">
-                  <div className="w-16 h-16 rounded-2xl bg-[#006c49]/10 text-[#006c49] flex items-center justify-center border border-[#006c49]/20">
-                    <span className="material-symbols-outlined text-4xl font-bold">account_circle</span>
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold text-[#151c27]">{user.name}</h3>
-                    <p className="text-sm text-[#3c4a42] font-semibold">{user.email}</p>
-                  </div>
+        {/* View Tab 3: SYSTEM INFO */}
+        {tab === 'settings' && (
+          <div className="fade-in max-w-lg mx-auto bg-white rounded-3xl p-6 border border-[#bbcabf]/20 shadow-md">
+            <h2 className="text-2xl font-extrabold text-[#151c27] mb-6">Thông tin hệ thống</h2>
+
+            <div className="space-y-4">
+              <div className="p-4 bg-[#f0f3ff] rounded-2xl flex justify-between items-center gap-4">
+                <div>
+                  <h4 className="font-bold text-sm text-[#151c27]">Mô hình nhận dạng</h4>
+                  <p className="text-xs text-[#3c4a42] mt-0.5">Backend dùng YOLO best.pt; kết quả phụ thuộc ảnh và class đã train.</p>
                 </div>
-
-                <div className="space-y-4">
-                  <div className="p-4 bg-[#f0f3ff] rounded-2xl flex justify-between items-center">
-                    <div>
-                      <h4 className="font-bold text-sm text-[#151c27]">Mô hình nhận dạng</h4>
-                      <p className="text-xs text-[#3c4a42] mt-0.5">Backend dùng YOLO best.pt; kết quả phụ thuộc ảnh và class đã train.</p>
-                    </div>
-                    <span className="font-extrabold text-xs text-[#006c49] bg-[#006c49]/10 px-2.5 py-1 rounded-full uppercase tracking-wider">
-                      YOLO
-                    </span>
-                  </div>
-
-                  <div className="p-4 bg-[#f0f3ff] rounded-2xl">
-                    <h4 className="font-bold text-sm text-[#151c27]">Ghi chú hệ thống</h4>
-                    <p className="text-xs text-[#3c4a42] mt-1 leading-relaxed">
-                      Auth hiện tại là demo frontend bằng localStorage. Calories là ước tính tham khảo theo khẩu phần chuẩn.
-                    </p>
-                  </div>
-
-                  <div className="p-4 bg-[#f0f3ff] rounded-2xl flex justify-between items-center">
-                    <div>
-                      <h4 className="font-bold text-sm text-[#151c27]">Số món đã nhận diện</h4>
-                      <p className="text-xs text-[#3c4a42] mt-0.5">Thống kê nhật ký dinh dưỡng cá nhân</p>
-                    </div>
-                    <span className="font-extrabold text-sm text-[#006c49]">
-                      {historyList.length} món
-                    </span>
-                  </div>
-                </div>
-
-                <div className="mt-8 pt-6 border-t border-[#bbcabf]/30 flex flex-col gap-3">
-                  <button
-                    onClick={() => {
-                      if (confirm('Bạn có muốn xóa toàn bộ lịch sử quét không?')) {
-                        setHistoryList([]);
-                        localStorage.setItem('vietfood_history', JSON.stringify([]));
-                        showToast('Đã xóa toàn bộ lịch sử quét', 'info');
-                      }
-                    }}
-                    className="w-full bg-[#fef2f2] hover:bg-[#fde2e2] text-[#ba1a1a] font-bold text-sm py-3 rounded-2xl transition-all active:scale-[0.98]"
-                  >
-                    Xóa toàn bộ lịch sử quét
-                  </button>
-
-                  <button
-                    onClick={handleLogout}
-                    className="w-full bg-[#f0f3ff] hover:bg-[#e2e8f8] text-[#3c4a42] font-bold text-sm py-3 rounded-2xl transition-all active:scale-[0.98] flex items-center justify-center gap-2"
-                  >
-                    <span className="material-symbols-outlined text-lg">logout</span>
-                    Đăng xuất tài khoản
-                  </button>
-                </div>
+                <span className="font-extrabold text-xs text-[#006c49] bg-[#006c49]/10 px-2.5 py-1 rounded-full uppercase tracking-wider">
+                  YOLO
+                </span>
               </div>
-            )}
-          </>
-        )}
 
+              <div className="p-4 bg-[#f0f3ff] rounded-2xl">
+                <h4 className="font-bold text-sm text-[#151c27]">Endpoint nhận dạng</h4>
+                <p className="text-xs text-[#3c4a42] mt-1 leading-relaxed break-all">
+                  POST {BACKEND_PREDICT_URL}
+                </p>
+              </div>
+
+              <div className="p-4 bg-[#f0f3ff] rounded-2xl">
+                <h4 className="font-bold text-sm text-[#151c27]">Ghi chú phạm vi</h4>
+                <p className="text-xs text-[#3c4a42] mt-1 leading-relaxed">
+                  Phiên bản này không có database và không có đăng nhập. Lịch sử chỉ được lưu cục bộ trên trình duyệt.
+                  Calories là ước tính tham khảo theo khẩu phần chuẩn.
+                </p>
+              </div>
+
+              <div className="p-4 bg-[#f0f3ff] rounded-2xl flex justify-between items-center">
+                <div>
+                  <h4 className="font-bold text-sm text-[#151c27]">Số bản ghi lịch sử</h4>
+                  <p className="text-xs text-[#3c4a42] mt-0.5">Dữ liệu cục bộ trong trình duyệt hiện tại</p>
+                </div>
+                <span className="font-extrabold text-sm text-[#006c49]">
+                  {historyList.length} món
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-8 pt-6 border-t border-[#bbcabf]/30">
+              <button
+                onClick={() => {
+                  if (confirm('Bạn có muốn xóa toàn bộ lịch sử quét cục bộ không?')) {
+                    setHistoryList([]);
+                    localStorage.setItem('vietfood_history', JSON.stringify([]));
+                    showToast('Đã xóa toàn bộ lịch sử quét cục bộ', 'info');
+                  }
+                }}
+                className="w-full bg-[#fef2f2] hover:bg-[#fde2e2] text-[#ba1a1a] font-bold text-sm py-3 rounded-2xl transition-all active:scale-[0.98]"
+              >
+                Xóa toàn bộ lịch sử cục bộ
+              </button>
+            </div>
+          </div>
+        )}
       </main>
 
       {/* History Detail Modal */}
@@ -1231,39 +901,37 @@ export default function App() {
       )}
 
       {/* Bottom Navigation for Mobile Only */}
-      {showMainMenu && (
-        <nav className="md:hidden fixed bottom-0 left-0 w-full z-50 bg-[#f9f9ff]/80 backdrop-blur-md shadow-[0_-4px_20px_rgba(0,0,0,0.05)] border-t border-[#bbcabf]/30 flex justify-around items-center px-4 pb-6 pt-2">
-          <button
-            onClick={() => { setTab('recognize'); setAuthScreen(null); }}
-            className={`flex flex-col items-center justify-center transition-all ${
-              tab === 'recognize' ? 'bg-[#006c49]/10 text-[#006c49] px-5 py-1.5 rounded-2xl font-bold' : 'text-[#3c4a42]'
-            }`}
-          >
-            <span className={`material-symbols-outlined ${tab === 'recognize' ? 'fill-icon' : ''}`}>photo_camera</span>
-            <span className="text-[10px] font-bold mt-0.5">Nhận diện</span>
-          </button>
+      <nav className="md:hidden fixed bottom-0 left-0 w-full z-50 bg-[#f9f9ff]/80 backdrop-blur-md shadow-[0_-4px_20px_rgba(0,0,0,0.05)] border-t border-[#bbcabf]/30 flex justify-around items-center px-4 pb-6 pt-2">
+        <button
+          onClick={() => setTab('recognize')}
+          className={`flex flex-col items-center justify-center transition-all ${
+            tab === 'recognize' ? 'bg-[#006c49]/10 text-[#006c49] px-5 py-1.5 rounded-2xl font-bold' : 'text-[#3c4a42]'
+          }`}
+        >
+          <span className={`material-symbols-outlined ${tab === 'recognize' ? 'fill-icon' : ''}`}>photo_camera</span>
+          <span className="text-[10px] font-bold mt-0.5">Nhận diện</span>
+        </button>
 
-          <button
-            onClick={() => { setTab('history'); setAuthScreen(null); }}
-            className={`flex flex-col items-center justify-center transition-all ${
-              tab === 'history' ? 'bg-[#006c49]/10 text-[#006c49] px-5 py-1.5 rounded-2xl font-bold' : 'text-[#3c4a42]'
-            }`}
-          >
-            <span className={`material-symbols-outlined ${tab === 'history' ? 'fill-icon' : ''}`}>history</span>
-            <span className="text-[10px] font-bold mt-0.5">Lịch sử</span>
-          </button>
+        <button
+          onClick={() => setTab('history')}
+          className={`flex flex-col items-center justify-center transition-all ${
+            tab === 'history' ? 'bg-[#006c49]/10 text-[#006c49] px-5 py-1.5 rounded-2xl font-bold' : 'text-[#3c4a42]'
+          }`}
+        >
+          <span className={`material-symbols-outlined ${tab === 'history' ? 'fill-icon' : ''}`}>history</span>
+          <span className="text-[10px] font-bold mt-0.5">Lịch sử</span>
+        </button>
 
-          <button
-            onClick={() => { setTab('settings'); setAuthScreen(null); }}
-            className={`flex flex-col items-center justify-center transition-all ${
-              tab === 'settings' ? 'bg-[#006c49]/10 text-[#006c49] px-5 py-1.5 rounded-2xl font-bold' : 'text-[#3c4a42]'
-            }`}
-          >
-            <span className={`material-symbols-outlined ${tab === 'settings' ? 'fill-icon' : ''}`}>settings</span>
-            <span className="text-[10px] font-bold mt-0.5">Cài đặt</span>
-          </button>
-        </nav>
-      )}
+        <button
+          onClick={() => setTab('settings')}
+          className={`flex flex-col items-center justify-center transition-all ${
+            tab === 'settings' ? 'bg-[#006c49]/10 text-[#006c49] px-5 py-1.5 rounded-2xl font-bold' : 'text-[#3c4a42]'
+          }`}
+        >
+          <span className={`material-symbols-outlined ${tab === 'settings' ? 'fill-icon' : ''}`}>settings</span>
+          <span className="text-[10px] font-bold mt-0.5">Hệ thống</span>
+        </button>
+      </nav>
 
       {/* Desktop Footer Only */}
       <footer className="hidden md:flex w-full bg-white py-8 px-12 justify-between items-center border-t border-[#bbcabf]/20 mt-12">
