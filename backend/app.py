@@ -23,6 +23,10 @@ CALORIES_CSV_PATH = DATA_DIR / "dataset_calories_v0_34.csv"
 MAPPING_PATH = DATA_DIR / "class_calorie_mapping.json"
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".jfif", ".webp"}
 MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024
+CALORIE_ESTIMATION_NOTE = (
+    "Calories chỉ là ước tính tham khảo theo khẩu phần chuẩn; "
+    "hệ thống chưa đo được khối lượng thực tế từ ảnh 2D."
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s - %(message)s")
 logger = logging.getLogger("vietfood.backend")
@@ -59,6 +63,8 @@ class PredictResponse(BaseModel):
     filename: str
     message: str
     detections: list[DetectionResponse]
+    total_calories_estimated: float
+    calorie_estimation_note: str
     annotated_image_base64: str
 
 app = FastAPI(title="VietFood AI Demo", version="1.0.0")
@@ -127,10 +133,9 @@ def classes() -> dict[str, Any]:
 async def predict(file: UploadFile = File(...)) -> dict[str, Any]:
     if predictor is None:
         raise HTTPException(status_code=503, detail="Model YOLO chưa load được. Kiểm tra /health.")
-    if nutrition_lookup is None:
-        raise HTTPException(status_code=503, detail="CSV calories chưa load được. Kiểm tra /health.")
 
     filename = file.filename or "uploaded_image"
+    logger.info("[predict] Received file: %s", filename)
     extension = Path(filename).suffix.lower()
     if extension not in ALLOWED_EXTENSIONS:
         raise HTTPException(
@@ -139,6 +144,7 @@ async def predict(file: UploadFile = File(...)) -> dict[str, Any]:
         )
 
     content = await file.read()
+    logger.info("[predict] Uploaded size: %s bytes", len(content))
     if not content:
         raise HTTPException(status_code=400, detail="File ảnh rỗng.")
     if len(content) > MAX_UPLOAD_SIZE_BYTES:
@@ -155,11 +161,40 @@ async def predict(file: UploadFile = File(...)) -> dict[str, Any]:
         logger.exception("Prediction failed for uploaded file %s", filename)
         raise HTTPException(status_code=500, detail="Backend gặp lỗi khi nhận dạng ảnh.") from exc
 
+    logger.info("[predict] Detections: %s", len(detections))
     for detection in detections:
-        detection["nutrition"] = nutrition_lookup.lookup(detection["class_name"])
+        class_name = detection["class_name"]
+        if nutrition_lookup is None:
+            detection["nutrition"] = _missing_nutrition(
+                class_name,
+                "CSV calories chưa load được. Backend vẫn trả detection nhưng chưa có dữ liệu calories.",
+            )
+            continue
+
+        try:
+            detection["nutrition"] = nutrition_lookup.lookup(class_name)
+        except Exception as exc:  # noqa: BLE001 - keep recognition response stable if mapping has bad data.
+            logger.exception("Nutrition lookup failed for class %s", class_name)
+            detection["nutrition"] = _missing_nutrition(
+                class_name,
+                f"Lỗi tra cứu calories: {exc}",
+            )
+
+    total_calories_estimated = 0.0
+    for detection in detections:
+        nutrition = detection.get("nutrition") or {}
+        value = nutrition.get("calories_per_serving_selected")
+        if isinstance(value, (int, float)):
+            total_calories_estimated += float(value)
+            continue
+        if isinstance(value, str):
+            try:
+                total_calories_estimated += float(value)
+            except ValueError:
+                continue
 
     message = (
-        "Không nhận dạng được món ăn nào. Vui lòng thử ảnh khác."
+        "Không nhận dạng được món ăn. Vui lòng thử ảnh rõ hơn, đủ sáng và món ăn nằm trong khung hình."
         if not detections
         else "Nhận dạng thành công."
     )
@@ -169,7 +204,18 @@ async def predict(file: UploadFile = File(...)) -> dict[str, Any]:
         "filename": filename,
         "message": message,
         "detections": detections,
+        "total_calories_estimated": total_calories_estimated,
+        "calorie_estimation_note": CALORIE_ESTIMATION_NOTE,
         "annotated_image_base64": annotated_image_base64,
+    }
+
+
+def _missing_nutrition(class_name: str, message: str) -> dict[str, Any]:
+    return {
+        "matched": False,
+        "food_id": None,
+        "food_name_vi": class_name,
+        "message": message,
     }
 
 

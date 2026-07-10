@@ -50,6 +50,8 @@ interface YoloPredictResponse {
   filename: string;
   message: string;
   detections: YoloDetection[];
+  total_calories_estimated?: number | string;
+  calorie_estimation_note?: string;
   annotated_image_base64?: string;
 }
 
@@ -59,11 +61,16 @@ interface RecognitionResult extends Partial<FoodLog> {
   detections: YoloDetection[];
   annotatedImage?: string;
   calorieRange?: string;
+  calorieNote?: string;
+  hasLowConfidence?: boolean;
   totalCalories: number;
 }
 
 const BACKEND_PREDICT_URL = 'http://127.0.0.1:8000/predict';
 const REQUEST_TIMEOUT_MS = 30000;
+const LOW_CONFIDENCE_THRESHOLD = 0.5;
+const CALORIE_ESTIMATION_NOTE =
+  'Calories chỉ là ước tính tham khảo theo khẩu phần chuẩn, không thay thế tư vấn dinh dưỡng chuyên môn.';
 
 const toNumber = (value: number | string | null | undefined): number | null => {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
@@ -93,9 +100,12 @@ const formatConfidence = (confidence: number): number => {
 const buildRecognitionResult = (data: YoloPredictResponse): RecognitionResult => {
   const detections = Array.isArray(data.detections) ? data.detections : [];
   const primaryDetection = detections[0];
-  const calories = detections.reduce((sum, detection) => sum + (getDetectionCalories(detection) ?? 0), 0);
+  const calories =
+    toNumber(data.total_calories_estimated) ??
+    detections.reduce((sum, detection) => sum + (getDetectionCalories(detection) ?? 0), 0);
   const primaryMin = toNumber(primaryDetection?.nutrition?.calories_min_final);
   const primaryMax = toNumber(primaryDetection?.nutrition?.calories_max_final);
+  const hasLowConfidence = detections.some((detection) => detection.confidence < LOW_CONFIDENCE_THRESHOLD);
 
   return {
     filename: data.filename,
@@ -109,75 +119,15 @@ const buildRecognitionResult = (data: YoloPredictResponse): RecognitionResult =>
     carbs: 0,
     fat: 0,
     confidence: primaryDetection ? formatConfidence(primaryDetection.confidence) : 0,
-    description: data.message,
+    description:
+      data.message ||
+      'Không nhận dạng được món ăn. Vui lòng thử ảnh rõ hơn, đủ sáng và món ăn nằm trong khung hình.',
     isVietnamese: true,
     calorieRange: primaryMin !== null && primaryMax !== null ? `${primaryMin} - ${primaryMax} KCAL` : undefined,
+    calorieNote: data.calorie_estimation_note || CALORIE_ESTIMATION_NOTE,
+    hasLowConfidence,
   };
 };
-
-// Pre-seeded logs from mockup
-const PRE_SEEDED_LOGS: FoodLog[] = [
-  {
-    id: 'seeded-1',
-    dishName: 'Phở Bò',
-    calories: 450,
-    protein: 25,
-    carbs: 55,
-    fat: 15,
-    confidence: 98,
-    description: 'Phở Bò là món ăn truyền thống nổi tiếng nhất của Việt Nam, nổi bật với nước dùng thanh ngọt thơm nồng thảo mộc tinh tế cùng bánh phở dai mềm.',
-    date: '08:30 - Hôm nay',
-    timestamp: Date.now() - 2 * 60 * 60 * 1000,
-    image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDTBicDAju5HjXb1outhOXiaU5kgNhhh5YIPRhYX11kE362TQUBTVaabx30Y6xcWAA_nyVvmBNtwEZbyO0vvm_wpt7QmUHAgUnXV_CxCPkVDrszxIn4MmWfVhbZA_gQGH8Te0exKD9QngJdFgGgI_TIHQ9k4b9IMHd4t25MkdwRJiwMfH3wDCRFjkaD2p_RuR8CzUedFCzhaNFbvWu5hg6UIhpKz7M2pN34E6gYPcPNdrbg9zAmCQZ5',
-    isVietnamese: true,
-    filterGroup: 'today'
-  },
-  {
-    id: 'seeded-2',
-    dishName: 'Bánh Mì',
-    calories: 380,
-    protein: 14,
-    carbs: 48,
-    fat: 16,
-    confidence: 95,
-    description: 'Bánh mì kẹp Việt Nam giòn tan bên ngoài, xốp mềm bên trong với hương vị đậm đà từ pate ngon, bơ thơm béo, các loại chả lụa và dưa góp thanh mát.',
-    date: '12:15 - Hôm nay',
-    timestamp: Date.now() - 6 * 60 * 60 * 1000,
-    image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAY1ZSpCn1WhwPV2Sd4UK2ASLpEPdtEDQER1GZ5XNHcPqXlD9AOOwAmXjN3apK2CnmGDHVn-qFfdPo274w0b4syA0F1ZKxodVgEpqN6QEVf2qd2Yr38iSOrbDPR4crTtDHnJ8tl7jBjO-R-SfxJkrwp8dNSuX7ozkpBWnvz84UyG2NVLK06Rtk8Ckvxri8UsKOFmimKYDNRudjFjluOb0gfuyU7SvF523zkdWvCrjgfoKw5AKEFvR3N',
-    isVietnamese: true,
-    filterGroup: 'today'
-  },
-  {
-    id: 'seeded-3',
-    dishName: 'Gỏi Cuốn',
-    calories: 120,
-    protein: 8,
-    carbs: 22,
-    fat: 2,
-    confidence: 97,
-    description: 'Món gỏi cuốn thanh mát với tôm tươi luộc đỏ hồng, thịt heo mềm ngọt cuộn chung bún tươi và dồi dào rau sống, chấm cùng nước tương đậu phộng béo ngậy.',
-    date: '19:45 - Hôm qua',
-    timestamp: Date.now() - 24 * 60 * 60 * 1000,
-    image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBNtsIz8PKxI5LVeQo6kxz_XJYhDYFm3CjAL8deXvkvchI51E4E4QAxBWV_m-NAfhi7hwb1QPwyygQZDPBBeZLxrT1UOX5YEobqKeqHyde-qr612PLAfvyR-CC5ccEfjiqQQ-eiL9ucbF2_PBrkqwbS4uT0nbOpsX1o6KvPXZ39PmdC08OscUgvVimV_qoyDRP5Gz1qv6sHZLQxdIESDbuqhXB8QijmydmGdDi9X41Ebm4CZqhs4JoT',
-    isVietnamese: true,
-    filterGroup: 'week'
-  },
-  {
-    id: 'seeded-4',
-    dishName: 'Bún Chả',
-    calories: 520,
-    protein: 22,
-    carbs: 65,
-    fat: 18,
-    confidence: 96,
-    description: 'Đặc sản Hà Nội gồm thịt ba chỉ và chả băm nướng vàng ruộm trên than hoa thơm nức, ăn kèm bún tươi, rổ rau sống tươi roi rói và nước chấm chua ngọt tỏi ớt.',
-    date: '12:30 - 2 ngày trước',
-    timestamp: Date.now() - 48 * 60 * 60 * 1000,
-    image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCNp778S8kDoca5bxhzgbwuKVb5WlrqxVPru5fvdHkVBQZLH7kLXiZ2-BFN6cY8P4zt2gcrP--eBfO9Q3Bu6saC57Dul2S2aLpi18O0nekGWypseenCFK30Hy_T4S2tjFkd64cLPbwSBrX8hAuVY51H1sl9qxudVBlicw0j-mRfoDA5hJboTpYWEZNu_0M63mdUWrdLhL5tTeNV6TUBGxoBNQBrR_ZVaKp7axBP5JbkivCH9oejnFjn',
-    isVietnamese: true,
-    filterGroup: 'week'
-  }
-];
 
 export default function App() {
   const [tab, setTab] = useState<'recognize' | 'history' | 'settings'>('recognize');
@@ -212,7 +162,12 @@ export default function App() {
   useEffect(() => {
     const storedUser = localStorage.getItem('vietfood_user');
     if (storedUser) {
-      setUser(JSON.parse(storedUser));
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch {
+        localStorage.removeItem('vietfood_user');
+        setAuthScreen('login');
+      }
     } else {
       // Prompt login by default to match mockup 4/5
       setAuthScreen('login');
@@ -220,10 +175,15 @@ export default function App() {
 
     const storedHistory = localStorage.getItem('vietfood_history');
     if (storedHistory) {
-      setHistoryList(JSON.parse(storedHistory));
+      try {
+        const parsedHistory = JSON.parse(storedHistory);
+        setHistoryList(Array.isArray(parsedHistory) ? parsedHistory : []);
+      } catch {
+        localStorage.removeItem('vietfood_history');
+        setHistoryList([]);
+      }
     } else {
-      setHistoryList(PRE_SEEDED_LOGS);
-      localStorage.setItem('vietfood_history', JSON.stringify(PRE_SEEDED_LOGS));
+      setHistoryList([]);
     }
   }, []);
 
@@ -236,9 +196,16 @@ export default function App() {
     }, 4000);
   };
 
+  useEffect(() => {
+    if (!user && !authScreen) {
+      setTab('recognize');
+      setAuthScreen('login');
+    }
+  }, [user, authScreen]);
+
   const requireLogin = () => {
     if (user) return true;
-    showToast('Vui lòng đăng nhập hoặc đăng ký tài khoản để sử dụng chức năng dự đoán calo.', 'error');
+    showToast('Vui lòng đăng nhập hoặc đăng ký tài khoản để sử dụng chức năng nhận dạng món ăn.', 'error');
     setAuthScreen('login');
     return false;
   };
@@ -310,6 +277,10 @@ export default function App() {
   };
 
   const processFile = (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      showToast('File không phải ảnh. Hãy chọn ảnh JPG, PNG hoặc WEBP.', 'error');
+      return;
+    }
     if (file.size > 10 * 1024 * 1024) {
       showToast('File ảnh quá lớn, giới hạn tối đa 10MB', 'error');
       return;
@@ -375,11 +346,17 @@ export default function App() {
         const mappedResult = buildRecognitionResult(data);
         setResult(mappedResult);
         if (mappedResult.detections.length === 0) {
-          showToast(data.message || 'Không nhận dạng được món ăn nào trong ảnh.', 'info');
+          showToast(
+            data.message || 'Không nhận dạng được món ăn. Vui lòng thử ảnh rõ hơn, đủ sáng và món ăn nằm trong khung hình.',
+            'info',
+          );
           return;
         }
+        if (mappedResult.hasLowConfidence) {
+          showToast('Kết quả có độ tin cậy thấp, vui lòng thử ảnh rõ hơn.', 'info');
+        }
         if (mappedResult.totalCalories === 0) {
-          showToast('Nhận dạng được món, nhưng chưa có calories phù hợp.', 'info');
+          showToast('Nhận dạng được món, nhưng chưa có dữ liệu calories cho món này.', 'info');
           return;
         }
         showToast('Nhận diện hoàn tất!', 'success');
@@ -888,15 +865,23 @@ export default function App() {
                               </span>
                             </div>
                             <div className="text-right">
+                              <span className="block text-[11px] text-[#3c4a42] font-bold uppercase tracking-wider">
+                                Calo tham khảo
+                              </span>
                               <span className="block text-2xl font-extrabold text-[#855300]">{result.calories} KCAL</span>
                               {result.calorieRange && (
                                 <span className="block text-[11px] text-[#3c4a42] font-semibold mt-1">
-                                  {result.calorieRange}
+                                  Khoảng ước tính: {result.calorieRange}
                                 </span>
                               )}
                               <span className="text-xs text-[#3c4a42] font-semibold">/ khẩu phần</span>
                             </div>
                           </div>
+                          {result.hasLowConfidence && (
+                            <p className="text-xs text-[#855300] font-bold mt-3 p-2 rounded-xl bg-[#fff4d6] border border-[#fea619]/30">
+                              Kết quả có độ tin cậy thấp, vui lòng thử ảnh rõ hơn.
+                            </p>
+                          )}
                           {result.description && (
                             <p className="text-xs text-[#3c4a42] italic mt-3 pt-2.5 border-t border-[#fea619]/10 leading-relaxed">
                               {result.description}
@@ -907,7 +892,7 @@ export default function App() {
                         <div className="space-y-3 flex-1">
                           {result.detections.length === 0 ? (
                             <div className="p-4 rounded-2xl bg-[#f0f3ff] text-sm font-semibold text-[#3c4a42]">
-                              Backend không tìm thấy món ăn nào trong ảnh này.
+                              Không nhận dạng được món ăn. Vui lòng thử ảnh rõ hơn, đủ sáng và món ăn nằm trong khung hình.
                             </div>
                           ) : (
                             result.detections.map((detection) => {
@@ -931,11 +916,11 @@ export default function App() {
                                     </div>
                                     <div className="text-right shrink-0">
                                       <span className="block text-sm font-extrabold text-[#855300]">
-                                        {calories !== null ? `${calories} KCAL` : 'Chưa có kcal'}
+                                        {calories !== null ? `${calories} KCAL` : 'Chưa có dữ liệu calories cho món này.'}
                                       </span>
                                       {minCalories !== null && maxCalories !== null && (
                                         <span className="block text-[11px] text-[#3c4a42] font-semibold mt-1">
-                                          {minCalories} - {maxCalories} KCAL
+                                          Khoảng: {minCalories} - {maxCalories} KCAL
                                         </span>
                                       )}
                                     </div>
@@ -946,55 +931,21 @@ export default function App() {
                           )}
                         </div>
 
-                        {/* Nutrient bars */}
-                        <div className="space-y-4 flex-1">
-                          {/* Protein */}
-                          <div>
-                            <div className="flex justify-between text-xs font-semibold mb-1">
-                              <span className="text-[#3c4a42]">Protein</span>
-                              <span className="text-[#151c27] font-bold">{result.protein}g</span>
-                            </div>
-                            <div className="h-2 w-full bg-[#f0f3ff] rounded-full overflow-hidden">
-                              <div
-                                style={{ width: `${Math.min((result.protein || 0) * 2.5, 100)}%` }}
-                                className="h-full bg-[#fea619] rounded-full transition-all duration-1000"
-                              ></div>
-                            </div>
-                          </div>
-
-                          {/* Carbs */}
-                          <div>
-                            <div className="flex justify-between text-xs font-semibold mb-1">
-                              <span className="text-[#3c4a42]">Carbohydrates (Tinh bột)</span>
-                              <span className="text-[#151c27] font-bold">{result.carbs}g</span>
-                            </div>
-                            <div className="h-2 w-full bg-[#f0f3ff] rounded-full overflow-hidden">
-                              <div
-                                style={{ width: `${Math.min((result.carbs || 0) * 1.2, 100)}%` }}
-                                className="h-full bg-[#71a1ff] rounded-full transition-all duration-1000"
-                              ></div>
-                            </div>
-                          </div>
-
-                          {/* Fat */}
-                          <div>
-                            <div className="flex justify-between text-xs font-semibold mb-1">
-                              <span className="text-[#3c4a42]">Chất béo (Fat)</span>
-                              <span className="text-[#151c27] font-bold">{result.fat}g</span>
-                            </div>
-                            <div className="h-2 w-full bg-[#f0f3ff] rounded-full overflow-hidden">
-                              <div
-                                style={{ width: `${Math.min((result.fat || 0) * 4, 100)}%` }}
-                                className="h-full bg-[#6c7a71] rounded-full transition-all duration-1000"
-                              ></div>
-                            </div>
-                          </div>
+                        <div className="mt-4 p-4 rounded-2xl bg-[#f0f3ff] border border-[#bbcabf]/20">
+                          <p className="text-xs text-[#3c4a42] leading-relaxed font-semibold">
+                            {result.calorieNote || CALORIE_ESTIMATION_NOTE}
+                          </p>
+                          {result.detections.length > 1 && (
+                            <p className="text-xs text-[#3c4a42] leading-relaxed mt-2">
+                              Tổng calo chỉ là tổng tham khảo của các món phát hiện được; hệ thống chưa đo được khối lượng thực tế từ ảnh.
+                            </p>
+                          )}
                         </div>
 
                         {/* Save block */}
                         <div className="mt-6 pt-5 border-t border-[#bbcabf]/30">
                           <p className="text-[10px] text-[#3c4a42]/75 italic mb-3 font-medium">
-                            * Số liệu calo chỉ mang tính chất ước tính tương đối cho một khẩu phần tham khảo.
+                            * Calories chỉ là ước tính tham khảo theo khẩu phần chuẩn, không thay thế tư vấn dinh dưỡng chuyên môn.
                           </p>
                           <button
                             onClick={saveToJournal}
@@ -1026,7 +977,7 @@ export default function App() {
                     </div>
                     <div>
                       <h5 className="font-bold text-sm mb-1">Nhận diện nhanh</h5>
-                      <p className="text-xs text-[#3c4a42] leading-relaxed">Phân tích hình ảnh bằng AI siêu tốc dưới 2 giây.</p>
+                      <p className="text-xs text-[#3c4a42] leading-relaxed">Phân tích hình ảnh bằng backend YOLO và trả kết quả gợi ý theo độ tin cậy.</p>
                     </div>
                   </div>
 
@@ -1036,7 +987,7 @@ export default function App() {
                     </div>
                     <div>
                       <h5 className="font-bold text-sm mb-1">Dữ liệu dinh dưỡng</h5>
-                      <p className="text-xs text-[#3c4a42] leading-relaxed">Thư viện hàng ngàn món ăn truyền thống Việt Nam.</p>
+                      <p className="text-xs text-[#3c4a42] leading-relaxed">Tra cứu calories từ mapping hiện có và báo rõ khi món chưa có dữ liệu.</p>
                     </div>
                   </div>
 
@@ -1162,12 +1113,19 @@ export default function App() {
                 <div className="space-y-4">
                   <div className="p-4 bg-[#f0f3ff] rounded-2xl flex justify-between items-center">
                     <div>
-                      <h4 className="font-bold text-sm text-[#151c27]">Độ chính xác mô hình</h4>
-                      <p className="text-xs text-[#3c4a42] mt-0.5">Sử dụng mô hình nhận diện Gemini 3.5 Flash</p>
+                      <h4 className="font-bold text-sm text-[#151c27]">Mô hình nhận dạng</h4>
+                      <p className="text-xs text-[#3c4a42] mt-0.5">Backend dùng YOLO best.pt; kết quả phụ thuộc ảnh và class đã train.</p>
                     </div>
                     <span className="font-extrabold text-xs text-[#006c49] bg-[#006c49]/10 px-2.5 py-1 rounded-full uppercase tracking-wider">
-                      Cao nhất
+                      YOLO
                     </span>
+                  </div>
+
+                  <div className="p-4 bg-[#f0f3ff] rounded-2xl">
+                    <h4 className="font-bold text-sm text-[#151c27]">Ghi chú hệ thống</h4>
+                    <p className="text-xs text-[#3c4a42] mt-1 leading-relaxed">
+                      Auth hiện tại là demo frontend bằng localStorage. Calories là ước tính tham khảo theo khẩu phần chuẩn.
+                    </p>
                   </div>
 
                   <div className="p-4 bg-[#f0f3ff] rounded-2xl flex justify-between items-center">
@@ -1185,9 +1143,9 @@ export default function App() {
                   <button
                     onClick={() => {
                       if (confirm('Bạn có muốn xóa toàn bộ lịch sử quét không?')) {
-                        setHistoryList(PRE_SEEDED_LOGS);
-                        localStorage.setItem('vietfood_history', JSON.stringify(PRE_SEEDED_LOGS));
-                        showToast('Đã khôi phục lịch sử mặc định', 'info');
+                        setHistoryList([]);
+                        localStorage.setItem('vietfood_history', JSON.stringify([]));
+                        showToast('Đã xóa toàn bộ lịch sử quét', 'info');
                       }
                     }}
                     className="w-full bg-[#fef2f2] hover:bg-[#fde2e2] text-[#ba1a1a] font-bold text-sm py-3 rounded-2xl transition-all active:scale-[0.98]"
@@ -1253,37 +1211,10 @@ export default function App() {
                 )}
               </div>
 
-              {/* Progress bars */}
-              <div className="space-y-3.5">
-                <div>
-                  <div className="flex justify-between text-xs font-semibold mb-1">
-                    <span>Protein</span>
-                    <span className="font-bold">{selectedHistoryItem.protein}g</span>
-                  </div>
-                  <div className="h-1.5 w-full bg-[#f0f3ff] rounded-full overflow-hidden">
-                    <div style={{ width: `${Math.min(selectedHistoryItem.protein * 2.5, 100)}%` }} className="h-full bg-[#fea619] rounded-full"></div>
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between text-xs font-semibold mb-1">
-                    <span>Carbohydrates</span>
-                    <span className="font-bold">{selectedHistoryItem.carbs}g</span>
-                  </div>
-                  <div className="h-1.5 w-full bg-[#f0f3ff] rounded-full overflow-hidden">
-                    <div style={{ width: `${Math.min(selectedHistoryItem.carbs * 1.2, 100)}%` }} className="h-full bg-[#71a1ff] rounded-full"></div>
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between text-xs font-semibold mb-1">
-                    <span>Chất béo (Fat)</span>
-                    <span className="font-bold">{selectedHistoryItem.fat}g</span>
-                  </div>
-                  <div className="h-1.5 w-full bg-[#f0f3ff] rounded-full overflow-hidden">
-                    <div style={{ width: `${Math.min(selectedHistoryItem.fat * 4, 100)}%` }} className="h-full bg-[#6c7a71] rounded-full"></div>
-                  </div>
-                </div>
+              <div className="p-4 rounded-2xl bg-[#f0f3ff] border border-[#bbcabf]/20">
+                <p className="text-xs text-[#3c4a42] leading-relaxed font-semibold">
+                  Calories trong lịch sử là ước tính tham khảo theo khẩu phần chuẩn, không thay thế tư vấn dinh dưỡng chuyên môn.
+                </p>
               </div>
             </div>
 
