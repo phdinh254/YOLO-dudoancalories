@@ -1,67 +1,16 @@
 # VietFood AI Web Demo
 
-## 1. Giới thiệu
+Demo web nhận dạng món ăn Việt Nam từ ảnh bằng YOLO và ước tính calories tham khảo theo khẩu phần chuẩn.
 
-**VietFood AI Web Demo** là hệ thống web dùng AI để nhận dạng món ăn Việt Nam từ hình ảnh và dự đoán lượng calo tương ứng. Người dùng đăng nhập/đăng ký, upload ảnh món ăn, hệ thống dùng mô hình YOLO `best.pt` để nhận dạng và trả về thông tin calo.
+## Công nghệ
 
-## 2. Công nghệ sử dụng
+* Frontend: React, TypeScript, Vite, Node.js.
+* Backend: Python, FastAPI, Uvicorn.
+* AI/ML: Ultralytics YOLO, model `backend/models/best.pt`.
+* Dữ liệu: `data.yaml`, CSV calories, JSON class-calorie mapping.
+* Auth: demo frontend bằng `localStorage`, chưa có database/server session.
 
-* **Frontend:** TypeScript, HTML/CSS, Node.js
-* **Backend:** Python, FastAPI, Uvicorn
-* **AI/ML:** Ultralytics YOLO, model `best.pt`
-* **Xử lý dữ liệu:** Pandas, CSV/JSON/YAML calories mapping
-* **Database:** Chưa sử dụng database server
-
-## 3. Chức năng chính
-
-* Đăng ký/đăng nhập demo.
-* Chặn người chưa đăng nhập upload ảnh/dự đoán calo.
-* Upload ảnh món ăn.
-* Nhận dạng món ăn bằng YOLO.
-* Tra cứu calories theo món ăn.
-* Hiển thị tên món, độ tin cậy, calories, khoảng calories và ảnh annotated.
-* Lưu/xem lịch sử dự đoán ở mức demo frontend.
-
-## 4. Luồng hoạt động
-
-```text
-Đăng nhập/Đăng ký
-→ Upload ảnh món ăn
-→ Frontend gửi ảnh đến backend /predict
-→ Backend chạy YOLO nhận dạng món ăn
-→ Backend tra cứu calories
-→ Frontend hiển thị kết quả
-```
-
-## 5. Cấu trúc thư mục chính
-
-```text
-dudoancalories/
-├── backend/
-│   ├── app.py
-│   ├── best.pt
-│   ├── run_backend.bat
-│   └── tests/
-│
-├── frontend/
-│   ├── src/App.tsx
-│   ├── server.ts
-│   └── package.json
-│
-├── test_images/
-└── README.md
-```
-
-## 6. Cách chạy dự án
-
-### Chạy backend
-
-```powershell
-cd D:\DU-AN\dudoancalories\backend
-.\run_backend.bat
-```
-
-Hoặc:
+## Chạy backend
 
 ```powershell
 cd D:\DU-AN\dudoancalories\backend
@@ -74,32 +23,37 @@ Backend chạy tại:
 http://127.0.0.1:8000
 ```
 
-### Chạy frontend
+## Chạy frontend
 
 ```powershell
 cd D:\DU-AN\dudoancalories\frontend
+npm install
 npm run dev
 ```
 
-Frontend chạy tại:
+Mở:
 
 ```text
 http://127.0.0.1:3000
 ```
 
-## 7. API chính
+Nếu port `3000` đang bị chiếm, đóng tiến trình cũ hoặc chạy PowerShell:
 
-### Kiểm tra backend
-
-```http
-GET /health
+```powershell
+Get-NetTCPConnection -LocalPort 3000 | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object { Stop-Process -Id $_ }
 ```
 
-### Dự đoán món ăn
+## Endpoint chính
 
-```http
-POST /predict
-```
+### `GET /health`
+
+Trả trạng thái backend, model YOLO và dữ liệu calories.
+
+### `GET /classes`
+
+Trả danh sách class mà model đang biết.
+
+### `POST /predict`
 
 Request:
 
@@ -108,58 +62,93 @@ Content-Type: multipart/form-data
 Field ảnh: file
 ```
 
-Response gồm:
+Response mẫu:
 
-* Tên món ăn
-* Độ tin cậy
-* Calories
-* Khoảng calories
-* Ảnh annotated
-* Danh sách món được phát hiện
+```json
+{
+  "success": true,
+  "filename": "test_pho.jfif",
+  "message": "Nhận dạng thành công.",
+  "detections": [
+    {
+      "class_id": 52,
+      "class_name": "Pho",
+      "confidence": 0.86,
+      "bbox": { "x1": 10, "y1": 20, "x2": 300, "y2": 240 },
+      "nutrition": {
+        "matched": true,
+        "food_name_vi": "Phở bò",
+        "calories_per_serving_selected": 410,
+        "calories_min_final": 350,
+        "calories_max_final": 500
+      }
+    }
+  ],
+  "total_calories_estimated": 410,
+  "calorie_estimation_note": "Calories chỉ là ước tính tham khảo theo khẩu phần chuẩn; hệ thống chưa đo được khối lượng thực tế từ ảnh 2D.",
+  "annotated_image_base64": "data:image/jpeg;base64,..."
+}
+```
 
-## 8. Kiểm thử
+## Cơ chế giảm rủi ro đã áp dụng
 
-### Test backend
+* Frontend chỉ gọi backend thật `/predict`, gửi `FormData` field `file`.
+* Không dùng Gemini, không dùng `simulateAnalysis()`, không hard-code kết quả nhận dạng.
+* Hiển thị confidence theo phần trăm.
+* Cảnh báo khi confidence thấp hơn `0.5`.
+* Hiển thị nhiều detection nếu ảnh có nhiều món.
+* Hiển thị tổng calories chỉ là tổng tham khảo.
+* Báo rõ “Chưa có dữ liệu calories cho món này.” khi mapping thiếu.
+* Báo rõ khi không nhận dạng được món ăn và gợi ý dùng ảnh rõ/đủ sáng.
+* Người chưa đăng nhập không thấy menu chức năng chính và không upload/nhận dạng được.
+* Lịch sử không còn seed dữ liệu mẫu; chỉ lưu kết quả người dùng thực sự lưu.
+
+## Giới hạn hệ thống
+
+* Kiểm tra hiện tại: model có 68 class YOLO, 18 class có mapping calories numeric, 50 class còn thiếu mapping calories tin cậy.
+* Danh sách thiếu mapping nằm ở `backend/data/missing_calorie_mappings_report.json`.
+* Dataset món ăn Việt Nam chưa phải bộ dữ liệu chuẩn lớn cho mọi món/biến thể.
+* Model chỉ nhận dạng tốt trong phạm vi class đã train.
+* Kết quả có thể sai nếu ảnh mờ, tối, món ăn bị che khuất hoặc không thuộc class đã train.
+* Calories chỉ là ước tính tham khảo theo khẩu phần chuẩn.
+* Hệ thống chưa đo được khối lượng thực tế từ ảnh 2D, nên không thể tính calories chính xác tuyệt đối.
+* Auth hiện tại là demo frontend bằng `localStorage`, chưa có bảo mật token/session ở backend.
+* Lịch sử hiện lưu ở trình duyệt, chưa đồng bộ theo database người dùng thật.
+
+## Kiểm thử
+
+Backend:
 
 ```powershell
 cd D:\DU-AN\dudoancalories\backend
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-### Test frontend
+Frontend:
 
 ```powershell
 cd D:\DU-AN\dudoancalories\frontend
 npm run build
 ```
 
-## 9. Trạng thái hiện tại
+Smoke test API:
 
-* Backend FastAPI chạy được.
-* Model YOLO `best.pt` load thành công.
-* Endpoint `/predict` nhận ảnh và trả kết quả.
-* Frontend đã gọi đúng backend `/predict`.
-* Không còn dùng Gemini/mock trong luồng nhận diện chính.
-* Người chưa đăng nhập bị chặn upload/dự đoán.
-* Trang đăng nhập/đăng ký đã ẩn menu “Nhận diện”, “Lịch sử”, “Cài đặt”.
+```powershell
+cd D:\DU-AN\dudoancalories\backend
+@'
+from pathlib import Path
+from fastapi.testclient import TestClient
+from app import app
 
-## 10. Giới hạn hiện tại
+with TestClient(app) as client:
+    image_path = Path("../test_images/test_pho.jfif")
+    with image_path.open("rb") as f:
+        response = client.post("/predict", files={"file": (image_path.name, f, "image/jpeg")})
+    print(response.status_code)
+    print(response.json()["message"])
+'@ | .\backend\.venv\Scripts\python.exe -
+```
 
-* Auth mới ở mức demo frontend.
-* Backend `/predict` chưa có bảo mật token/session.
-* Chưa có database lưu người dùng và lịch sử thật.
-* Calories chỉ là giá trị ước tính.
-* Chưa triển khai public server hoặc app mobile thật.
+## Kết luận
 
-## 11. Hướng phát triển
-
-* Thêm đăng nhập/đăng ký thật ở backend.
-* Lưu lịch sử dự đoán vào database.
-* Bảo vệ API bằng token/session.
-* Tối ưu giao diện mobile.
-* Phát triển thành PWA hoặc app Android.
-* Huấn luyện thêm dữ liệu món ăn Việt Nam.
-
-## 12. Kết luận
-
-**VietFood AI Web Demo** là hệ thống demo nhận dạng món ăn Việt Nam bằng YOLO và ước tính calories từ hình ảnh. Dự án đã có luồng frontend-backend hoạt động, phù hợp để trình bày đồ án và tiếp tục mở rộng thành ứng dụng quản lý dinh dưỡng hoàn chỉnh hơn.
+Dự án phù hợp để báo cáo ở mức web demo nhận dạng món ăn bằng YOLO và ước tính calories tham khảo. Không nên trình bày hệ thống như một công cụ tính calories chính xác tuyệt đối.

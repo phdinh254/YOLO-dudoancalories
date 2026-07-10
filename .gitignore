@@ -1,19 +1,16 @@
-﻿# Node
-frontend/node_modules/
-frontend/dist/
+﻿# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+backend/__pycache__/
 
 # Logs
 *.log
-backend/*.log
-frontend/*.log
 
-# Python
-backend/__pycache__/
-*.pyc
+# Node
+frontend/node_modules/
+frontend/dist/
 
-# Virtual environment
+# Virtual Environment
 backend/.venv/
-
-# OS
-.DS_Store
-Thumbs.db

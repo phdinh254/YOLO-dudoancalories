@@ -1,20 +1,25 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# VietFood AI Frontend
 
-# Run and deploy your AI Studio app
+Frontend demo cho dự án VietFood AI. Ứng dụng dùng React/TypeScript, chạy qua Vite middleware trong `server.ts` và gọi backend FastAPI thật tại `http://127.0.0.1:8000/predict`.
 
-This contains everything you need to run your app locally.
+## Chạy local
 
-View your app in AI Studio: https://ai.studio/apps/ca76cfae-8e93-4e3d-aee6-49850da892b0
+```powershell
+cd D:\DU-AN\dudoancalories\frontend
+npm install
+npm run dev
+```
 
-## Run Locally
+Mở:
 
-**Prerequisites:**  Node.js
+```text
+http://127.0.0.1:3000
+```
 
+## Lưu ý tích hợp
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+* Frontend gửi ảnh bằng `FormData` với field `file`.
+* Frontend không tự set `Content-Type`.
+* Frontend không gọi Gemini và không còn endpoint `/api/recognize`.
+* Auth hiện tại là demo frontend bằng `localStorage`.
+* Calories chỉ là ước tính tham khảo theo khẩu phần chuẩn.
