@@ -1,6 +1,4 @@
-# VietFood AI Web Demo
-
-Demo web nhận dạng món ăn Việt Nam từ ảnh bằng YOLO và ước tính calories tham khảo theo khẩu phần chuẩn.
+# Dự đoán calo dựa trên tập dataset VietFood68 bằng hình ảnh thật
 
 ## Công nghệ
 
