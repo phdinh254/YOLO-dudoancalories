@@ -1,4 +1,4 @@
-# Dự đoán calo dựa trên tập dataset VietFood68 bằng hình ảnh thật
+# Dự đoán số calo dựa trên tập dataset VietFood68 bằng hình ảnh thật
 
 ## Công nghệ
 
