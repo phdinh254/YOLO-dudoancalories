@@ -1,8 +1,0 @@
-INFO:     Started server process [24148]
-INFO:     Waiting for application startup.
-2026-07-09 19:31:07,370 INFO vietfood.backend - Starting VietFood AI backend
-2026-07-09 19:31:15,700 INFO matplotlib.font_manager - generated new fontManager
-2026-07-09 19:31:16,725 INFO vietfood.backend - YOLO model loaded from D:\DU-AN\vietfood67_dudoancalories\backend\models\best.pt
-2026-07-09 19:31:16,787 INFO vietfood.backend - Nutrition data loaded from D:\DU-AN\vietfood67_dudoancalories\backend\data\dataset_calories_v0_34.csv and D:\DU-AN\vietfood67_dudoancalories\backend\data\class_calorie_mapping.json
-INFO:     Application startup complete.
-INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
