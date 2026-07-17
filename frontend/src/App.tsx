@@ -64,6 +64,7 @@ interface RecognitionResult extends Partial<FoodLog> {
 const BACKEND_PREDICT_URL = import.meta.env.VITE_BACKEND_PREDICT_URL || 'http://127.0.0.1:8000/predict';
 const REQUEST_TIMEOUT_MS = 30000;
 const LOW_CONFIDENCE_THRESHOLD = 0.5;
+const MAX_HISTORY_ITEMS = 50;
 const CALORIE_ESTIMATION_NOTE =
   'Calories chỉ là ước tính tham khảo theo khẩu phần chuẩn, không thay thế tư vấn dinh dưỡng chuyên môn.';
 
@@ -300,9 +301,14 @@ export default function App() {
       filterGroup: 'today'
     };
 
-    const updatedHistory = [newLog, ...historyList];
+    const updatedHistory = [newLog, ...historyList].slice(0, MAX_HISTORY_ITEMS);
+    try {
+      localStorage.setItem('vietfood_history', JSON.stringify(updatedHistory));
+    } catch {
+      showToast('Không thể lưu vào nhật ký, bộ nhớ trình duyệt đã đầy.', 'error');
+      return;
+    }
     setHistoryList(updatedHistory);
-    localStorage.setItem('vietfood_history', JSON.stringify(updatedHistory));
     setIsSaved(true);
     showToast('Đã lưu món ăn vào nhật ký dinh dưỡng!', 'success');
   };
