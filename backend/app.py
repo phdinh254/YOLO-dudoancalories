@@ -159,8 +159,17 @@ async def predict(file: UploadFile = File(...)) -> dict[str, Any]:
 
     try:
         image = Image.open(io.BytesIO(content)).convert("RGB")
+    except Image.DecompressionBombError as exc:
+        logger.warning("[predict] Rejected oversized image %s: %s", filename, exc)
+        raise HTTPException(
+            status_code=400,
+            detail="Ảnh có kích thước sau giải nén quá lớn. Vui lòng dùng ảnh khác.",
+        ) from exc
     except UnidentifiedImageError as exc:
         raise HTTPException(status_code=400, detail="Không đọc được file ảnh.") from exc
+    except Exception as exc:  # noqa: BLE001 - any other decode failure (truncated/corrupt file) is a bad upload, not a server error.
+        logger.warning("[predict] Failed to decode uploaded image %s: %s", filename, exc)
+        raise HTTPException(status_code=400, detail="Không đọc được file ảnh. File có thể bị lỗi hoặc không đầy đủ.") from exc
 
     try:
         detections, annotated_image_base64 = predictor.predict(image)

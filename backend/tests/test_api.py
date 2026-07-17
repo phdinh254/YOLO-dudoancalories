@@ -141,6 +141,41 @@ def test_predict_rejects_file_larger_than_limit(client: TestClient) -> None:
     assert "10MB" in response.json()["detail"]
 
 
+def test_predict_rejects_corrupt_image_with_400_not_500(client: TestClient) -> None:
+    # A truncated file passes the extension/size checks but fails to decode.
+    # This used to escape as an unhandled 500 because the except clause only
+    # caught UnidentifiedImageError, not the OSError a truncated JPEG raises.
+    valid = _tiny_jpeg_bytes()
+    truncated = valid[: len(valid) // 2]
+
+    response = client.post(
+        "/predict",
+        files={"file": ("broken.jpg", truncated, "image/jpeg")},
+    )
+
+    assert response.status_code == 400
+    assert "Không đọc được file ảnh" in response.json()["detail"]
+
+
+def test_predict_rejects_decompression_bomb_with_400_not_500(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Lower Pillow's pixel-count guard so a small, cheap image trips the same
+    # DecompressionBombError a genuinely huge image would, without allocating
+    # one in the test. This used to escape as an unhandled 500. Pillow only
+    # raises (rather than just warning) once the image exceeds *twice* the
+    # configured limit, hence dividing by 4 here for the 10x10 fixture image.
+    monkeypatch.setattr(Image, "MAX_IMAGE_PIXELS", (10 * 10) // 4)
+
+    response = client.post(
+        "/predict",
+        files={"file": ("bomb.jpg", _tiny_jpeg_bytes(), "image/jpeg")},
+    )
+
+    assert response.status_code == 400
+    assert "quá lớn" in response.json()["detail"]
+
+
 def test_predict_merges_nutrition_and_sums_total_calories(client_with_detections: TestClient) -> None:
     response = client_with_detections.post(
         "/predict",
