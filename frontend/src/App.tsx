@@ -7,8 +7,8 @@ import RecognizeTab from './components/RecognizeTab';
 import HistoryTab from './components/HistoryTab';
 import SettingsTab from './components/SettingsTab';
 import HistoryDetailModal from './components/HistoryDetailModal';
-import { BACKEND_PREDICT_URL, REQUEST_TIMEOUT_MS, buildRecognitionResult } from './lib/recognition';
-import { clearHistory as clearStoredHistory, loadHistory, saveHistory } from './lib/history-storage';
+import { BACKEND_PREDICT_URL, REQUEST_TIMEOUT_MS, buildRecognitionResult, hasUsableDetection } from './lib/recognition';
+import { clearHistory as clearStoredHistory, loadHistory, matchesHistoryFilter, saveHistory } from './lib/history-storage';
 import type { FilterKey, FoodLog, RecognitionResult, TabKey, Toast, ToastType } from './types';
 
 export default function App() {
@@ -165,7 +165,12 @@ export default function App() {
 
   // Save scan result to local journal
   const saveToJournal = () => {
-    if (!result) return;
+    // Guard against saving a non-result: the Save button is hidden whenever
+    // there's no usable (matched-to-food) detection, but this keeps
+    // saveToJournal safe even if called some other way in the future.
+    // Uses the same hasUsableDetection check as the button's visibility so
+    // the two can't drift apart.
+    if (!result || !hasUsableDetection(result.detections)) return;
 
     const newLog: FoodLog = {
       id: Date.now().toString(),
@@ -179,8 +184,6 @@ export default function App() {
       date: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) + ' - Hôm nay',
       timestamp: Date.now(),
       image: result.annotatedImage || (image ? `data:${mimeType};base64,${image}` : 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c'),
-      isVietnamese: result.isVietnamese ?? true,
-      filterGroup: 'today',
     };
 
     const saveResult = saveHistory([newLog, ...historyList]);
@@ -219,12 +222,10 @@ export default function App() {
     }
   };
 
-  // Filter logs logic
-  const filteredHistory = historyList.filter((log) => {
-    if (activeFilter === 'today') return log.filterGroup === 'today' || log.date.includes('Hôm nay');
-    if (activeFilter === 'week') return log.filterGroup === 'today' || log.filterGroup === 'week' || log.date.includes('Hôm nay') || log.date.includes('Hôm qua');
-    return true; // Monthly gets all
-  });
+  // Filter logs logic. Computed from the real timestamp on every render
+  // (not a string frozen at save time), so "Hôm nay"/"Tuần này"/"Tháng này"
+  // stay correct as real time passes instead of matching every entry forever.
+  const filteredHistory = historyList.filter((log) => matchesHistoryFilter(log, activeFilter));
 
   return (
     <div className="min-h-screen bg-background text-on-surface flex flex-col font-sans pb-24 md:pb-0">

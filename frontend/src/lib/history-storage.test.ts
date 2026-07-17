@@ -1,6 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FoodLog } from '../types';
-import { HISTORY_STORAGE_KEY, MAX_HISTORY_ITEMS, clearHistory, loadHistory, saveHistory } from './history-storage';
+import {
+  HISTORY_STORAGE_KEY,
+  MAX_HISTORY_ITEMS,
+  clearHistory,
+  loadHistory,
+  matchesHistoryFilter,
+  saveHistory,
+} from './history-storage';
 
 function makeFoodLog(overrides: Partial<FoodLog> = {}): FoodLog {
   return {
@@ -15,8 +22,6 @@ function makeFoodLog(overrides: Partial<FoodLog> = {}): FoodLog {
     date: '10:00 - Hôm nay',
     timestamp: Date.now(),
     image: 'data:image/jpeg;base64,AAAA',
-    isVietnamese: true,
-    filterGroup: 'today',
     ...overrides,
   };
 }
@@ -173,6 +178,54 @@ describe('saveHistory', () => {
     }).not.toThrow();
 
     expect(result).toEqual({ status: 'unavailable' });
+  });
+});
+
+describe('matchesHistoryFilter', () => {
+  // Fixed reference instant instead of Date.now() so day/month boundaries
+  // in the assertions below can't flip depending on when the suite runs.
+  const now = new Date(2026, 0, 15, 12, 0, 0).getTime(); // 2026-01-15 12:00 local
+
+  const at = (year: number, month: number, day: number, hour = 12): number =>
+    new Date(year, month, day, hour).getTime();
+
+  it('matches "today" only for entries from the same calendar day', () => {
+    const todayLog = makeFoodLog({ timestamp: at(2026, 0, 15, 8) });
+    const yesterdayLog = makeFoodLog({ timestamp: at(2026, 0, 14) });
+
+    expect(matchesHistoryFilter(todayLog, 'today', now)).toBe(true);
+    expect(matchesHistoryFilter(yesterdayLog, 'today', now)).toBe(false);
+  });
+
+  it('matches "week" for anything within the last 7 days, including today', () => {
+    const todayLog = makeFoodLog({ timestamp: at(2026, 0, 15, 8) });
+    const sixDaysAgo = makeFoodLog({ timestamp: at(2026, 0, 9) });
+    const eightDaysAgo = makeFoodLog({ timestamp: at(2026, 0, 7) });
+
+    expect(matchesHistoryFilter(todayLog, 'week', now)).toBe(true);
+    expect(matchesHistoryFilter(sixDaysAgo, 'week', now)).toBe(true);
+    expect(matchesHistoryFilter(eightDaysAgo, 'week', now)).toBe(false);
+  });
+
+  it('matches "month" for anything in the same calendar month, even outside the week window', () => {
+    const tenDaysAgo = makeFoodLog({ timestamp: at(2026, 0, 5) }); // still January, >7 days ago
+    const lastMonth = makeFoodLog({ timestamp: at(2025, 11, 20) }); // December
+
+    expect(matchesHistoryFilter(tenDaysAgo, 'week', now)).toBe(false);
+    expect(matchesHistoryFilter(tenDaysAgo, 'month', now)).toBe(true);
+    expect(matchesHistoryFilter(lastMonth, 'month', now)).toBe(false);
+  });
+
+  it('re-evaluates against the current time rather than a value frozen at save time', () => {
+    // Same underlying entry; only "now" moves forward. A real bug here was
+    // that "today" was decided once via a string baked in at save time, so
+    // it never stopped matching "today" even days later.
+    const log = makeFoodLog({ timestamp: at(2026, 0, 15, 8) });
+    const muchLaterSameDay = at(2026, 0, 15, 23);
+    const nextWeek = at(2026, 0, 23, 8);
+
+    expect(matchesHistoryFilter(log, 'today', muchLaterSameDay)).toBe(true);
+    expect(matchesHistoryFilter(log, 'today', nextWeek)).toBe(false);
   });
 });
 

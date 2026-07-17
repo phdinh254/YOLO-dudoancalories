@@ -5,7 +5,7 @@ interface AppFooterProps {
 export default function AppFooter({ onFeatureInDevelopment }: AppFooterProps) {
   return (
     <footer className="hidden md:flex w-full bg-white py-8 px-12 justify-between items-center border-t border-outline-variant/20 mt-12">
-      <p className="text-sm text-on-surface-variant font-semibold">© 2026 VietFood AI - Chuyên gia dinh dưỡng số</p>
+      <p className="text-sm text-on-surface-variant font-semibold">© 2026 VietFood AI - Trợ lý ước tính calo bằng AI</p>
       <div className="flex gap-6">
         <a
           href="#"

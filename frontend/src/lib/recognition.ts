@@ -32,9 +32,18 @@ export const formatConfidence = (confidence: number): number => {
   return Math.round(confidence * 1000) / 10;
 };
 
+export const hasUsableDetection = (detections: YoloDetection[]): boolean =>
+  detections.some((detection) => detection.nutrition?.matched === true);
+
 export const buildRecognitionResult = (data: YoloPredictResponse): RecognitionResult => {
   const detections = Array.isArray(data.detections) ? data.detections : [];
-  const primaryDetection = detections[0];
+  // Prefer the highest-confidence detection that actually matched a food
+  // item over a non-food one (e.g. "Con nguoi") that happened to score
+  // higher, so the summary card doesn't headline "not a food item" while a
+  // real, calorie-bearing match sits in the breakdown below it.
+  const matchedDetections = detections.filter((detection) => detection.nutrition?.matched === true);
+  const primaryDetection = matchedDetections[0] ?? detections[0];
+  const hasUsableResult = hasUsableDetection(detections);
   const calories =
     toNumber(data.total_calories_estimated) ??
     detections.reduce((sum, detection) => sum + (getDetectionCalories(detection) ?? 0), 0);
@@ -57,9 +66,9 @@ export const buildRecognitionResult = (data: YoloPredictResponse): RecognitionRe
     description:
       data.message ||
       'Không nhận dạng được món ăn. Vui lòng thử ảnh rõ hơn, đủ sáng và món ăn nằm trong khung hình.',
-    isVietnamese: true,
     calorieRange: primaryMin !== null && primaryMax !== null ? `${primaryMin} - ${primaryMax} KCAL` : undefined,
     calorieNote: data.calorie_estimation_note || CALORIE_ESTIMATION_NOTE,
     hasLowConfidence,
+    hasUsableResult,
   };
 };

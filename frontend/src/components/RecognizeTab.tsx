@@ -31,6 +31,19 @@ export default function RecognizeTab({
   onReset,
   onSave,
 }: RecognizeTabProps) {
+  const detections = result?.detections ?? [];
+  const hasDetections = detections.length > 0;
+  // A result only counts as "usable" (success badge, save button, calorie
+  // footer) when at least one detection actually matched a food item.
+  // hasDetections alone isn't enough: YOLO can detect something real (e.g.
+  // "Con nguoi") that still isn't food and carries no calories.
+  const hasUsableResult = result?.hasUsableResult ?? false;
+  // The per-detection breakdown only adds information beyond the summary
+  // header when there's more than one item, or when a single item still
+  // needs its own "no calorie data" message.
+  const showDetectionBreakdown =
+    hasDetections && (detections.length > 1 || detections.some((detection) => detection.nutrition?.matched === false));
+
   return (
     <div className="fade-in">
       {/* Hero section */}
@@ -156,52 +169,59 @@ export default function RecognizeTab({
                 </div>
               )}
               {/* Nutrition header */}
-              <div className="bg-secondary-container/10 border border-secondary-container/20 rounded-2xl p-4 mb-6">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <span className="bg-primary/10 text-primary px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider">
-                        {result.isVietnamese ? 'Hoàn tất' : 'Khác'}
+              {hasUsableResult ? (
+                <div className="bg-secondary-container/10 border border-secondary-container/20 rounded-2xl p-4 mb-6">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className="bg-primary/10 text-primary px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider">
+                          Hoàn tất
+                        </span>
+                      </div>
+                      <h4 className="text-xl font-extrabold text-on-surface">{result.dishName}</h4>
+                      <span className="text-xs text-primary font-bold flex items-center gap-1 mt-1">
+                        <span className="material-symbols-outlined text-[15px] fill-icon">verified</span>
+                        Độ tin cậy: {result.confidence}%
                       </span>
                     </div>
-                    <h4 className="text-xl font-extrabold text-on-surface">{result.dishName}</h4>
-                    <span className="text-xs text-primary font-bold flex items-center gap-1 mt-1">
-                      <span className="material-symbols-outlined text-[15px] fill-icon">verified</span>
-                      Độ tin cậy: {result.confidence}%
-                    </span>
-                  </div>
-                  <div className="text-right">
-                    <span className="block text-[11px] text-on-surface-variant font-bold uppercase tracking-wider">
-                      Calo tham khảo
-                    </span>
-                    <span className="block text-2xl font-extrabold text-secondary">{result.calories} KCAL</span>
-                    {result.calorieRange && (
-                      <span className="block text-[11px] text-on-surface-variant font-semibold mt-1">
-                        Khoảng ước tính: {result.calorieRange}
+                    <div className="text-right">
+                      <span className="block text-[11px] text-on-surface-variant font-bold uppercase tracking-wider">
+                        Calo tham khảo
                       </span>
-                    )}
-                    <span className="text-xs text-on-surface-variant font-semibold">/ khẩu phần</span>
+                      <span className="block text-2xl font-extrabold text-secondary">{result.calories} KCAL</span>
+                      {result.calorieRange && (
+                        <span className="block text-[11px] text-on-surface-variant font-semibold mt-1">
+                          Khoảng ước tính: {result.calorieRange}
+                        </span>
+                      )}
+                      <span className="text-xs text-on-surface-variant font-semibold">/ khẩu phần</span>
+                    </div>
+                  </div>
+                  {result.hasLowConfidence && (
+                    <p className="text-xs text-secondary font-bold mt-3 p-2 rounded-xl bg-secondary-container/20 border border-secondary-container/50">
+                      Kết quả có độ tin cậy thấp, vui lòng thử ảnh rõ hơn.
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="bg-error-container/40 border border-error-container rounded-2xl p-4 mb-6 flex items-start gap-3">
+                  <span className="material-symbols-outlined text-error">search_off</span>
+                  <div>
+                    <span className="bg-error/10 text-error px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider">
+                      Không tìm thấy
+                    </span>
+                    <p className="text-sm font-semibold text-on-surface mt-1.5">
+                      {hasDetections
+                        ? 'AI không nhận diện được món ăn nào có dữ liệu calo trong ảnh này (có thể là người hoặc vật thể khác). Vui lòng thử ảnh khác.'
+                        : result.description}
+                    </p>
                   </div>
                 </div>
-                {result.hasLowConfidence && (
-                  <p className="text-xs text-secondary font-bold mt-3 p-2 rounded-xl bg-secondary-container/20 border border-secondary-container/50">
-                    Kết quả có độ tin cậy thấp, vui lòng thử ảnh rõ hơn.
-                  </p>
-                )}
-                {result.description && (
-                  <p className="text-xs text-on-surface-variant italic mt-3 pt-2.5 border-t border-secondary-container/10 leading-relaxed">
-                    {result.description}
-                  </p>
-                )}
-              </div>
+              )}
 
-              <div className="space-y-3 flex-1">
-                {result.detections.length === 0 ? (
-                  <div className="p-4 rounded-2xl bg-surface-container-low text-sm font-semibold text-on-surface-variant">
-                    Không nhận dạng được món ăn. Vui lòng thử ảnh rõ hơn, đủ sáng và món ăn nằm trong khung hình.
-                  </div>
-                ) : (
-                  result.detections.map((detection) => {
+              {showDetectionBreakdown && (
+                <div className="space-y-3 flex-1">
+                  {detections.map((detection) => {
                     const calories = getDetectionCalories(detection);
                     const minCalories = toNumber(detection.nutrition?.calories_min_final);
                     const maxCalories = toNumber(detection.nutrition?.calories_max_final);
@@ -233,39 +253,43 @@ export default function RecognizeTab({
                         </div>
                       </div>
                     );
-                  })
-                )}
-              </div>
+                  })}
+                </div>
+              )}
 
-              <div className="mt-4 p-4 rounded-2xl bg-surface-container-low border border-outline-variant/20">
-                <p className="text-xs text-on-surface-variant leading-relaxed font-semibold">
-                  {result.calorieNote || CALORIE_ESTIMATION_NOTE}
-                </p>
-                {result.detections.length > 1 && (
-                  <p className="text-xs text-on-surface-variant leading-relaxed mt-2">
-                    Tổng calo chỉ là tổng tham khảo của các món phát hiện được; hệ thống chưa đo được khối lượng thực tế từ ảnh.
+              {hasUsableResult && (
+                <div className="mt-4 p-4 rounded-2xl bg-surface-container-low border border-outline-variant/20">
+                  <p className="text-xs text-on-surface-variant leading-relaxed font-semibold">
+                    {result.calorieNote || CALORIE_ESTIMATION_NOTE}
                   </p>
-                )}
-              </div>
+                  {detections.length > 1 && (
+                    <p className="text-xs text-on-surface-variant leading-relaxed mt-2">
+                      Tổng calo chỉ là tổng tham khảo của các món phát hiện được; hệ thống chưa đo được khối lượng thực tế từ ảnh.
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Save block */}
-              <div className="mt-6 pt-5 border-t border-outline-variant/30">
-                <p className="text-[10px] text-on-surface-variant/75 italic mb-3 font-medium">
-                  * Calories chỉ là ước tính tham khảo theo khẩu phần chuẩn, không thay thế tư vấn dinh dưỡng chuyên môn.
-                </p>
-                <button
-                  onClick={onSave}
-                  disabled={isSaved}
-                  className={`w-full py-3 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-all shadow-sm ${
-                    isSaved
-                      ? 'bg-surface-container-low text-on-surface-variant border border-outline-variant/30 cursor-not-allowed'
-                      : 'bg-primary text-white hover:brightness-110'
-                  }`}
-                >
-                  <span className="material-symbols-outlined text-[20px]">{isSaved ? 'check' : 'bookmark'}</span>
-                  {isSaved ? 'Đã lưu vào nhật ký' : 'Lưu vào nhật ký'}
-                </button>
-              </div>
+              {hasUsableResult && (
+                <div className="mt-6 pt-5 border-t border-outline-variant/30">
+                  <p className="text-[10px] text-on-surface-variant/75 italic mb-3 font-medium">
+                    * Calories chỉ là ước tính tham khảo theo khẩu phần chuẩn, không thay thế tư vấn dinh dưỡng chuyên môn.
+                  </p>
+                  <button
+                    onClick={onSave}
+                    disabled={isSaved}
+                    className={`w-full py-3 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-all shadow-sm ${
+                      isSaved
+                        ? 'bg-surface-container-low text-on-surface-variant border border-outline-variant/30 cursor-not-allowed'
+                        : 'bg-primary text-white hover:brightness-110'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-[20px]">{isSaved ? 'check' : 'bookmark'}</span>
+                    {isSaved ? 'Đã lưu vào nhật ký' : 'Lưu vào nhật ký'}
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>

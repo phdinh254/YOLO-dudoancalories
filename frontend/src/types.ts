@@ -14,8 +14,6 @@ export interface FoodLog {
   date: string;
   timestamp: number;
   image: string; // Base64 or URL
-  isVietnamese: boolean;
-  filterGroup: FilterKey;
 }
 
 export interface Toast {
@@ -60,4 +58,8 @@ export interface RecognitionResult extends Partial<FoodLog> {
   calorieNote?: string;
   hasLowConfidence?: boolean;
   totalCalories: number;
+  /** True when at least one detection resolved to real nutrition data
+   * (nutrition.matched === true). False for zero detections *and* for
+   * detections that exist but aren't food (e.g. only "Con nguoi"). */
+  hasUsableResult?: boolean;
 }

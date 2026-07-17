@@ -1,4 +1,4 @@
-import type { FoodLog } from '../types';
+import type { FilterKey, FoodLog } from '../types';
 
 export const HISTORY_STORAGE_KEY = 'vietfood_history';
 export const MAX_HISTORY_ITEMS = 50;
@@ -124,4 +124,29 @@ export function clearHistory(): HistoryClearResult {
   } catch {
     return { status: 'unavailable' };
   }
+}
+
+function isSameCalendarDay(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * Whether `log` belongs to the given filter bucket, evaluated against `now`
+ * (defaults to the current time) every time it's called — not a value
+ * frozen at save time. "Hôm nay" is same calendar day; "Tuần này" is a
+ * rolling 7-day window; "Tháng này" is same calendar month/year.
+ */
+export function matchesHistoryFilter(log: FoodLog, filter: FilterKey, now: number = Date.now()): boolean {
+  const logDate = new Date(log.timestamp);
+  const nowDate = new Date(now);
+
+  if (filter === 'today') {
+    return isSameCalendarDay(logDate, nowDate);
+  }
+  if (filter === 'week') {
+    return now - log.timestamp <= ONE_WEEK_MS;
+  }
+  return logDate.getFullYear() === nowDate.getFullYear() && logDate.getMonth() === nowDate.getMonth();
 }
