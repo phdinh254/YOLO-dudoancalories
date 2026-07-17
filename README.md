@@ -125,14 +125,28 @@ Response mẫu:
 ## Giới hạn hệ thống
 
 * Kiểm tra hiện tại: model có 68 class YOLO, 67 class có mapping calories numeric. Class `Con nguoi` cố ý không có mapping vì backend báo "không phải món ăn" thay vì tính calories.
-* 18 class đầu (các món chính như Phở, Bánh mì, Bún bò Huế...) có số liệu đối chiếu từ nguồn cụ thể (xem cột `source_used`/`note` trong CSV). 49 class còn lại là ước tính nội bộ theo khẩu phần/100g phổ thông (`dataset_version = calories_v0_35_internal_estimate`), độ tin cậy `low-medium`, chưa đối chiếu nguồn trích dẫn — nên kiểm chứng lại trước khi dùng cho báo cáo chính thức.
-* Chi tiết coverage nằm ở `backend/data/missing_calorie_mappings_report.json`.
+* Chi tiết coverage nằm ở `backend/data/missing_calorie_mappings_report.json` (sinh tự động, xem cách sinh lại ở mục "Bộ dữ liệu calo" bên dưới).
 * Dataset món ăn Việt Nam chưa phải bộ dữ liệu chuẩn lớn cho mọi món/biến thể.
 * Model chỉ nhận dạng tốt trong phạm vi class đã train.
 * Kết quả có thể sai nếu ảnh mờ, tối, món ăn bị che khuất hoặc không thuộc class đã train.
 * Calories chỉ là ước tính tham khảo theo khẩu phần chuẩn.
 * Hệ thống chưa đo được khối lượng thực tế từ ảnh 2D, nên không thể tính calories chính xác tuyệt đối.
 * Lịch sử hiện lưu cục bộ trên trình duyệt, chưa đồng bộ theo tài khoản.
+
+## Bộ dữ liệu calo
+
+File `backend/data/dataset_calories_v0_34.csv` gồm các nhóm dòng khác nhau, phân biệt qua cột `dataset_version`:
+
+* **`calories_v0_34_research_ram`** (34 dòng, gồm 18 dòng ánh xạ tới class YOLO hiện tại + 16 dòng dự phòng) — số liệu có đối chiếu nguồn cụ thể, xem cột `source_used`/`note` từng dòng. Độ tin cậy `medium` đến `medium-high`.
+* **`calories_v0_35_internal_estimate`** (49 dòng) — ước tính nội bộ dựa trên khẩu phần/100g phổ thông, **không** đối chiếu nguồn trích dẫn cụ thể như nhóm trên. Độ tin cậy `low-medium`. Cột `note` của các dòng này chỉ mô tả đặc điểm món ăn (khẩu phần, cách chế biến), **không lặp lại** disclaimer — disclaimer chung áp dụng cho toàn bộ nhóm `calories_v0_35_internal_estimate` là: *số liệu ước tính, nên kiểm chứng lại với nguồn thật trước khi dùng cho báo cáo chính thức hoặc mục đích y tế/dinh dưỡng.*
+* **16 dòng chưa được class YOLO nào tham chiếu** (ví dụ `ga_nuong`, `pho_ga`, `banh_gio`, `trung_vit_lon`...) — giữ nguyên làm dữ liệu dự phòng cho phiên bản model tương lai có nhiều class hơn. Không tự ý tạo mapping cho các dòng này khi chưa có class YOLO tương ứng.
+
+Cách sinh lại `backend/data/missing_calorie_mappings_report.json` (không sửa tay):
+
+```powershell
+cd D:\DU-AN\dudoancalories\backend
+.\.venv\Scripts\python.exe scripts\generate_missing_calorie_report.py
+```
 
 ## Hướng phát triển
 

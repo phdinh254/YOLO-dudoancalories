@@ -5,5 +5,5 @@
   "missing_calorie_mapping_classes": [
     "Con nguoi"
   ],
-  "note": "Class 'Con nguoi' được backend xử lý riêng (utils/nutrition.py) để báo 'không phải món ăn' thay vì tính calories, nên cố ý không có trong mapping. Các class còn lại đều có mapping calories; phần lớn class bổ sung trong calories_v0_35_internal_estimate là ước tính nội bộ theo khẩu phần/100g phổ thông, chưa đối chiếu nguồn trích dẫn cụ thể như các món trong v0_34 gốc."
+  "note": "Class 'Con nguoi' được backend xử lý riêng (utils/nutrition.py) để báo 'không phải món ăn' thay vì tính calories, nên cố ý không có trong mapping. Các class còn lại trong danh sách này (nếu có) là lỗi dữ liệu thật cần sửa: class có mapping nhưng calories_per_serving_selected không phải số hợp lệ, hoặc class chưa có mapping trong class_calorie_mapping.json. Report này được sinh tự động bởi scripts/generate_missing_calorie_report.py, không chỉnh sửa thủ công."
 }
