@@ -12,10 +12,10 @@ export default function ToastContainer({ toasts }: ToastContainerProps) {
           key={t.id}
           className={`pointer-events-auto flex items-center gap-3 p-4 rounded-xl shadow-lg border max-w-xs transition-all duration-300 transform translate-x-0 fade-in ${
             t.type === 'success'
-              ? 'bg-[#ecfdf5] text-[#006c49] border-[#006c49]/20'
+              ? 'bg-success-container text-success border-success/20'
               : t.type === 'error'
-              ? 'bg-[#fef2f2] text-[#ba1a1a] border-[#ba1a1a]/20'
-              : 'bg-[#f0f3ff] text-[#005ac2] border-[#005ac2]/20'
+              ? 'bg-error-container text-error border-error/20'
+              : 'bg-surface-container-low text-tertiary border-tertiary/20'
           }`}
         >
           <span className="material-symbols-outlined text-[20px]">

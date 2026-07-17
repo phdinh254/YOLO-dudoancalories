@@ -1,32 +1,51 @@
 @import "tailwindcss";
 
+/*
+ * Warm culinary palette: terracotta/chili red as brand primary, golden
+ * amber as secondary (calories/nutrition figures), herb green reserved
+ * for the "success" role only (previously doubled up with primary green,
+ * which stopped making sense once primary became orange-red). Background
+ * is a warm rice-paper cream instead of the previous cool off-white.
+ */
 @theme {
   --font-sans: "Be Vietnam Pro", sans-serif;
-  --color-primary: #006c49;
-  --color-primary-container: #10b981;
-  --color-on-primary-container: #002113;
-  --color-secondary: #855300;
-  --color-secondary-container: #fea619;
-  --color-tertiary: #005ac2;
-  --color-tertiary-container: #71a1ff;
-  --color-on-surface: #151c27;
-  --color-on-surface-variant: #3c4a42;
+
+  --color-primary: #c1440e;
+  --color-primary-container: #b33a0a;
+  --color-on-primary-container: #3d1400;
+
+  --color-secondary: #8a5a00;
+  --color-secondary-container: #fdba43;
+  --color-on-secondary-container: #2e1d00;
+
+  --color-tertiary: #2b6cb0;
+  --color-tertiary-container: #8fb8e0;
+
+  --color-success: #3f6c4e;
+  --color-success-container: #e3f3e6;
+
+  --color-on-surface: #2b1b12;
+  --color-on-surface-variant: #6b5645;
+
   --color-surface-container-lowest: #ffffff;
-  --color-surface-container-low: #f0f3ff;
-  --color-surface-container-high: #e2e8f8;
-  --color-surface-container-highest: #dce2f3;
-  --color-background: #f9f9ff;
-  --color-outline: #6c7a71;
-  --color-outline-variant: #bbcabf;
-  --color-error: #ba1a1a;
-  --color-error-container: #ffdad6;
-  --color-on-error-container: #93000a;
+  --color-surface-container-low: #fbeedd;
+  --color-surface-container-high: #f3e1c8;
+  --color-surface-container-highest: #ead4ae;
+
+  --color-background: #fbf3e6;
+
+  --color-outline: #9c8567;
+  --color-outline-variant: #e4cfaf;
+
+  --color-error: #b3261e;
+  --color-error-container: #fde4e1;
+  --color-on-error-container: #410e0b;
 }
 
 body {
   font-family: "Be Vietnam Pro", sans-serif;
-  background-color: #f9f9ff;
-  color: #151c27;
+  background-color: var(--color-background);
+  color: var(--color-on-surface);
 }
 
 /* Animations from design */

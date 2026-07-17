@@ -17,8 +17,8 @@ export default function HistoryTab({ filteredHistory, activeFilter, onFilterChan
   return (
     <div className="fade-in max-w-3xl mx-auto">
       <div className="mb-6">
-        <h2 className="text-3xl font-black text-[#151c27] mb-1 leading-tight">Lịch sử nhận diện</h2>
-        <p className="text-sm text-[#3c4a42] font-semibold">Lịch sử được lưu cục bộ trên trình duyệt hiện tại.</p>
+        <h2 className="text-3xl font-black text-on-surface mb-1 leading-tight">Lịch sử nhận diện</h2>
+        <p className="text-sm text-on-surface-variant font-semibold">Lịch sử được lưu cục bộ trên trình duyệt hiện tại.</p>
       </div>
 
       {/* Filter chips */}
@@ -29,8 +29,8 @@ export default function HistoryTab({ filteredHistory, activeFilter, onFilterChan
             onClick={() => onFilterChange(filter.key)}
             className={`whitespace-nowrap px-6 py-2.5 rounded-full font-bold text-xs transition-all active:scale-95 ${
               activeFilter === filter.key
-                ? 'bg-[#10b981] text-white shadow-sm'
-                : 'bg-[#e2e8f8] text-[#3c4a42] hover:bg-[#dce2f3]'
+                ? 'bg-primary-container text-white shadow-sm'
+                : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest'
             }`}
           >
             {filter.label}
@@ -40,9 +40,9 @@ export default function HistoryTab({ filteredHistory, activeFilter, onFilterChan
 
       {/* Logs list */}
       {filteredHistory.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 bg-white rounded-3xl border border-[#bbcabf]/20">
-          <span className="material-symbols-outlined text-6xl text-[#6c7a71] mb-4">history_toggle_off</span>
-          <p className="text-base font-bold text-[#3c4a42]">Chưa có lịch sử nhận diện nào trong khoảng thời gian này.</p>
+        <div className="flex flex-col items-center justify-center py-16 bg-white rounded-3xl border border-outline-variant/20">
+          <span className="material-symbols-outlined text-6xl text-outline mb-4">history_toggle_off</span>
+          <p className="text-base font-bold text-on-surface-variant">Chưa có lịch sử nhận diện nào trong khoảng thời gian này.</p>
         </div>
       ) : (
         <div className="flex flex-col gap-4">
@@ -50,9 +50,9 @@ export default function HistoryTab({ filteredHistory, activeFilter, onFilterChan
             <div
               key={log.id}
               onClick={() => onSelectItem(log)}
-              className="group bg-white rounded-[24px] p-4 flex items-center gap-4 shadow-sm hover:shadow-md transition-all duration-300 border border-transparent hover:border-[#006c49]/15 cursor-pointer"
+              className="group bg-white rounded-[24px] p-4 flex items-center gap-4 shadow-sm hover:shadow-md transition-all duration-300 border border-transparent hover:border-primary/15 cursor-pointer"
             >
-              <div className="w-20 h-20 rounded-2xl overflow-hidden flex-shrink-0 bg-[#e2e8f8]">
+              <div className="w-20 h-20 rounded-2xl overflow-hidden flex-shrink-0 bg-surface-container-high">
                 <img
                   src={log.image}
                   alt={log.dishName}
@@ -65,18 +65,18 @@ export default function HistoryTab({ filteredHistory, activeFilter, onFilterChan
 
               <div className="flex-grow min-w-0">
                 <div className="flex justify-between items-start mb-1">
-                  <h3 className="text-lg font-extrabold text-[#151c27] truncate pr-2">{log.dishName}</h3>
-                  <span className="font-bold text-[11px] px-2.5 py-0.5 bg-[#ffddb8] text-[#2a1700] rounded-full shrink-0">
+                  <h3 className="text-lg font-extrabold text-on-surface truncate pr-2">{log.dishName}</h3>
+                  <span className="font-bold text-[11px] px-2.5 py-0.5 bg-secondary-container text-on-secondary-container rounded-full shrink-0">
                     {log.calories} kcal
                   </span>
                 </div>
-                <p className="text-xs text-[#3c4a42] flex items-center gap-1 font-semibold">
+                <p className="text-xs text-on-surface-variant flex items-center gap-1 font-semibold">
                   <span className="material-symbols-outlined text-[15px]">schedule</span>
                   {log.date}
                 </p>
               </div>
 
-              <button className="w-10 h-10 flex items-center justify-center rounded-full bg-[#f0f3ff] text-[#006c49] group-hover:bg-[#006c49] group-hover:text-white transition-all active:scale-90">
+              <button className="w-10 h-10 flex items-center justify-center rounded-full bg-surface-container-low text-primary group-hover:bg-primary group-hover:text-white transition-all active:scale-90">
                 <span className="material-symbols-outlined font-bold">chevron_right</span>
               </button>
             </div>

@@ -227,7 +227,7 @@ export default function App() {
   });
 
   return (
-    <div className="min-h-screen bg-[#f9f9ff] text-[#151c27] flex flex-col font-sans pb-24 md:pb-0">
+    <div className="min-h-screen bg-background text-on-surface flex flex-col font-sans pb-24 md:pb-0">
       <ToastContainer toasts={toasts} />
       <AppHeader tab={tab} onTabChange={setTab} />
 
