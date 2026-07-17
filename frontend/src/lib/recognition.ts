@@ -4,7 +4,6 @@ export const BACKEND_PREDICT_URL =
   import.meta.env.VITE_BACKEND_PREDICT_URL || 'http://127.0.0.1:8000/predict';
 export const REQUEST_TIMEOUT_MS = 30000;
 export const LOW_CONFIDENCE_THRESHOLD = 0.5;
-export const MAX_HISTORY_ITEMS = 50;
 export const CALORIE_ESTIMATION_NOTE =
   'Calories chỉ là ước tính tham khảo theo khẩu phần chuẩn, không thay thế tư vấn dinh dưỡng chuyên môn.';
 

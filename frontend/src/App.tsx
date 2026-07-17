@@ -7,7 +7,8 @@ import RecognizeTab from './components/RecognizeTab';
 import HistoryTab from './components/HistoryTab';
 import SettingsTab from './components/SettingsTab';
 import HistoryDetailModal from './components/HistoryDetailModal';
-import { BACKEND_PREDICT_URL, MAX_HISTORY_ITEMS, REQUEST_TIMEOUT_MS, buildRecognitionResult } from './lib/recognition';
+import { BACKEND_PREDICT_URL, REQUEST_TIMEOUT_MS, buildRecognitionResult } from './lib/recognition';
+import { clearHistory as clearStoredHistory, loadHistory, saveHistory } from './lib/history-storage';
 import type { FilterKey, FoodLog, RecognitionResult, TabKey, Toast, ToastType } from './types';
 
 export default function App() {
@@ -27,22 +28,6 @@ export default function App() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Load local browser history only. This demo has no database or auth session.
-  useEffect(() => {
-    const storedHistory = localStorage.getItem('vietfood_history');
-    if (storedHistory) {
-      try {
-        const parsedHistory = JSON.parse(storedHistory);
-        setHistoryList(Array.isArray(parsedHistory) ? parsedHistory : []);
-      } catch {
-        localStorage.removeItem('vietfood_history');
-        setHistoryList([]);
-      }
-    } else {
-      setHistoryList([]);
-    }
-  }, []);
-
   // Show Toast helper
   const showToast = (message: string, type: ToastType = 'info') => {
     const id = Date.now().toString();
@@ -51,6 +36,18 @@ export default function App() {
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 4000);
   };
+
+  // Load local browser history only. This demo has no database or auth session.
+  useEffect(() => {
+    const { history, warning } = loadHistory();
+    setHistoryList(history);
+    if (warning) {
+      showToast(warning, 'error');
+    }
+    // showToast is stable across renders (defined once per mount here); we only
+    // want this to run on mount, so it's intentionally excluded from deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // File handling
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -186,23 +183,40 @@ export default function App() {
       filterGroup: 'today',
     };
 
-    const updatedHistory = [newLog, ...historyList].slice(0, MAX_HISTORY_ITEMS);
-    try {
-      localStorage.setItem('vietfood_history', JSON.stringify(updatedHistory));
-    } catch {
+    const saveResult = saveHistory([newLog, ...historyList]);
+    if (saveResult.status === 'unavailable') {
+      showToast('Trình duyệt đang chặn lưu trữ cục bộ nên không thể lưu lịch sử.', 'error');
+      return;
+    }
+    if (saveResult.status === 'quota-exceeded') {
       showToast('Không thể lưu vào nhật ký, bộ nhớ trình duyệt đã đầy.', 'error');
       return;
     }
-    setHistoryList(updatedHistory);
+
+    setHistoryList(saveResult.history);
     setIsSaved(true);
-    showToast('Đã lưu món ăn vào nhật ký dinh dưỡng!', 'success');
+    if (saveResult.trimmedCount > 0) {
+      showToast(
+        `Đã lưu món ăn, nhưng phải bỏ ${saveResult.trimmedCount} bản ghi cũ nhất vì bộ nhớ trình duyệt gần đầy.`,
+        'info',
+      );
+    } else {
+      showToast('Đã lưu món ăn vào nhật ký dinh dưỡng!', 'success');
+    }
   };
 
   const clearHistory = () => {
     if (!confirm('Bạn có muốn xóa toàn bộ lịch sử quét cục bộ không?')) return;
+    const result = clearStoredHistory();
     setHistoryList([]);
-    localStorage.setItem('vietfood_history', JSON.stringify([]));
-    showToast('Đã xóa toàn bộ lịch sử quét cục bộ', 'info');
+    if (result.status === 'cleared') {
+      showToast('Đã xóa toàn bộ lịch sử quét cục bộ', 'info');
+    } else {
+      showToast(
+        'Đã xóa lịch sử trong phiên này, nhưng trình duyệt đang chặn lưu trữ cục bộ nên có thể lịch sử cũ sẽ quay lại ở lần mở sau.',
+        'error',
+      );
+    }
   };
 
   // Filter logs logic
