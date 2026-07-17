@@ -124,8 +124,9 @@ Response mẫu:
 
 ## Giới hạn hệ thống
 
-* Kiểm tra hiện tại: model có 68 class YOLO, 18 class có mapping calories numeric, 50 class còn thiếu mapping calories tin cậy.
-* Danh sách thiếu mapping nằm ở `backend/data/missing_calorie_mappings_report.json`.
+* Kiểm tra hiện tại: model có 68 class YOLO, 67 class có mapping calories numeric. Class `Con nguoi` cố ý không có mapping vì backend báo "không phải món ăn" thay vì tính calories.
+* 18 class đầu (các món chính như Phở, Bánh mì, Bún bò Huế...) có số liệu đối chiếu từ nguồn cụ thể (xem cột `source_used`/`note` trong CSV). 49 class còn lại là ước tính nội bộ theo khẩu phần/100g phổ thông (`dataset_version = calories_v0_35_internal_estimate`), độ tin cậy `low-medium`, chưa đối chiếu nguồn trích dẫn — nên kiểm chứng lại trước khi dùng cho báo cáo chính thức.
+* Chi tiết coverage nằm ở `backend/data/missing_calorie_mappings_report.json`.
 * Dataset món ăn Việt Nam chưa phải bộ dữ liệu chuẩn lớn cho mọi món/biến thể.
 * Model chỉ nhận dạng tốt trong phạm vi class đã train.
 * Kết quả có thể sai nếu ảnh mờ, tối, món ăn bị che khuất hoặc không thuộc class đã train.
