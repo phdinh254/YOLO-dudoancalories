@@ -61,8 +61,17 @@ export const buildRecognitionResult = (data: YoloPredictResponse): RecognitionRe
     (detection) => detection.nutrition?.matched === true && !detection.counted_in_total,
   );
 
-  const isSingleDish = countedDetections.length === 1;
-  const primaryDetection = isSingleDish ? countedDetections[0] : undefined;
+  const isPrimaryCounted = countedDetections.length === 1;
+  // A single detection that matched a food but wasn't counted (low
+  // confidence) still gets to be "the" primary for name/confidence/range
+  // display - its real confidence (e.g. 30.4%) must show, not a blank 0%,
+  // and its real calorie_range is still informative even though it's
+  // excluded from the total.
+  const primaryDetection = isPrimaryCounted
+    ? countedDetections[0]
+    : countedDetections.length === 0 && matchedButUncountedDetections.length === 1
+      ? matchedButUncountedDetections[0]
+      : undefined;
 
   const hasLowConfidence = detections.some((detection) => detection.confidence < LOW_CONFIDENCE_THRESHOLD);
 
@@ -71,9 +80,9 @@ export const buildRecognitionResult = (data: YoloPredictResponse): RecognitionRe
     message: data.message,
     detections,
     annotatedImage: data.annotated_image_base64,
-    // Single counted dish -> its own name. Multiple -> an honest combined
-    // label naming every dish the total actually covers (never a single
-    // dish's name standing in for a multi-dish total).
+    // Single dish (counted or not) -> its own name. Multiple counted -> an
+    // honest combined label naming every dish the total actually covers
+    // (never a single dish's name standing in for a multi-dish total).
     dishName: primaryDetection
       ? primaryDetection.dish_name
       : countedDetections.length > 1
@@ -86,18 +95,24 @@ export const buildRecognitionResult = (data: YoloPredictResponse): RecognitionRe
     protein: 0,
     carbs: 0,
     fat: 0,
-    // Only meaningful for a single counted dish; multi-dish totals don't have
-    // one confidence value that represents the whole sum.
+    // Real confidence of the single named detection, whether or not it was
+    // counted - multi-dish totals are the only case with no single
+    // confidence value to show.
     confidence: primaryDetection ? formatConfidence(primaryDetection.confidence) : 0,
     description:
       data.message ||
       'Không nhận dạng được món ăn. Vui lòng thử ảnh rõ hơn, đủ sáng và món ăn nằm trong khung hình.',
-    // Only shown for a single counted dish - a range for a multi-dish sum
-    // would be as misleading as the name mismatch this fixes.
+    // The named detection's own range, whether or not it was counted - still
+    // informative, and there's no "total range" to fall back to instead.
     calorieRange: primaryDetection?.calorie_range ?? undefined,
     calorieNote: data.calorie_estimation_note || CALORIE_ESTIMATION_NOTE,
     hasLowConfidence,
     hasUsableResult,
     isMultiDish: countedDetections.length > 1,
+    // Whether the headline number actually is the named dish's own calories
+    // (single counted dish). False for multi-dish sums AND for a single
+    // uncounted dish, where the "0 KCAL" headline must not be read as that
+    // dish's calorie content and must not carry a "/ khẩu phần" suffix.
+    isPrimaryCounted,
   };
 };

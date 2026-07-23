@@ -72,6 +72,10 @@ export interface RecognitionResult extends Partial<FoodLog> {
   /** True when more than one detection is counted in the total - the header
    * shows a combined label/total instead of a single dish's info. */
   isMultiDish?: boolean;
+  /** True when the headline `calories` is literally the named dish's own
+   * calorie value (exactly one counted detection). False for multi-dish sums
+   * and for a single low-confidence dish excluded from the total. */
+  isPrimaryCounted?: boolean;
   totalCalories: number;
   /** True when at least one detection resolved to real nutrition data
    * (nutrition.matched === true). False for zero detections *and* for

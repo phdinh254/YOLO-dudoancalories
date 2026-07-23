@@ -192,7 +192,11 @@ export default function RecognizeTab({
                     </div>
                     <div className="text-right">
                       <span className="block text-[11px] text-on-surface-variant font-bold uppercase tracking-wider">
-                        {result.isMultiDish ? 'Tổng calo cả ảnh' : 'Calo tham khảo'}
+                        {result.isMultiDish
+                          ? 'Tổng calo cả ảnh'
+                          : result.isPrimaryCounted
+                            ? 'Calo tham khảo'
+                            : 'Chưa tính vào tổng calo'}
                       </span>
                       <span className="block text-2xl font-extrabold text-secondary">{result.calories} KCAL</span>
                       {result.calorieRange && (
@@ -200,7 +204,7 @@ export default function RecognizeTab({
                           Khoảng ước tính: {result.calorieRange}
                         </span>
                       )}
-                      {!result.isMultiDish && (
+                      {result.isPrimaryCounted && (
                         <span className="text-xs text-on-surface-variant font-semibold">/ khẩu phần</span>
                       )}
                     </div>

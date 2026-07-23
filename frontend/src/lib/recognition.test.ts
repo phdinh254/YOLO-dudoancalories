@@ -48,6 +48,7 @@ describe('buildRecognitionResult', () => {
     expect(result.totalCalories).toBe(410);
     expect(result.calorieRange).toBe('350 - 500 KCAL');
     expect(result.isMultiDish).toBe(false);
+    expect(result.isPrimaryCounted).toBe(true);
     expect(result.hasUsableResult).toBe(true);
   });
 
@@ -94,7 +95,7 @@ describe('buildRecognitionResult', () => {
   });
 
   it('a low-confidence detection is shown but excluded from the total, and named honestly', () => {
-    const lowConfidencePho = detection({ confidence: 0.4, counted_in_total: false });
+    const lowConfidencePho = detection({ confidence: 0.304, counted_in_total: false });
 
     const result = buildRecognitionResult(response({ detections: [lowConfidencePho], total_calories_estimated: 0 }));
 
@@ -105,6 +106,15 @@ describe('buildRecognitionResult', () => {
     // Still names the dish that was detected (with a warning in the UI),
     // instead of falling back to "not recognized" for something that was.
     expect(result.dishName).toBe('Phở bò');
+    // Regression: the header used to fall back to a blank 0% confidence and
+    // hide the range for this exact case (single detection, matched, not
+    // counted), even though the real confidence/range are known and useful.
+    expect(result.confidence).toBe(30.4);
+    expect(result.calorieRange).toBe('350 - 500 KCAL');
+    // The 0 KCAL headline must not be presented as "this dish's calories
+    // per serving" - isPrimaryCounted must be false so the UI doesn't
+    // attach a "/ khẩu phần" suffix to a total that was never computed for it.
+    expect(result.isPrimaryCounted).toBe(false);
   });
 
   it('a detection with no calorie mapping contributes nothing and is not treated as usable on its own', () => {
