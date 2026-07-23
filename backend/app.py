@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import logging
+import os
 from pathlib import Path
 from typing import Any
 
@@ -34,6 +35,26 @@ CALORIE_ESTIMATION_NOTE = (
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s - %(message)s")
 logger = logging.getLogger("vietfood.backend")
+
+_DEFAULT_ALLOWED_ORIGINS = [
+    "http://127.0.0.1:3000",
+    "http://localhost:3000",
+    "http://127.0.0.1:3001",
+    "http://localhost:3001",
+    "http://127.0.0.1:5173",
+    "http://localhost:5173",
+]
+
+
+def _load_allowed_origins() -> list[str]:
+    # ALLOWED_ORIGINS="https://app.example.com,https://staging.example.com"
+    # Falls back to the local dev ports so `uvicorn app:app` keeps working
+    # out of the box without any env setup.
+    raw = os.environ.get("ALLOWED_ORIGINS")
+    if not raw:
+        return _DEFAULT_ALLOWED_ORIGINS
+    origins = [origin.strip() for origin in raw.split(",") if origin.strip()]
+    return origins or _DEFAULT_ALLOWED_ORIGINS
 
 
 class HealthResponse(BaseModel):
@@ -80,14 +101,7 @@ class PredictResponse(BaseModel):
 app = FastAPI(title="VietFood AI Demo", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://127.0.0.1:3000",
-        "http://localhost:3000",
-        "http://127.0.0.1:3001",
-        "http://localhost:3001",
-        "http://127.0.0.1:5173",
-        "http://localhost:5173",
-    ],
+    allow_origins=_load_allowed_origins(),
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -107,18 +121,20 @@ def startup() -> None:
     try:
         predictor = VietFoodPredictor(MODEL_PATH, DATA_YAML_PATH)
         logger.info("YOLO model loaded from %s", MODEL_PATH)
-    except Exception as exc:  # noqa: BLE001 - expose startup issue through /health.
+    except Exception:  # noqa: BLE001 - full detail goes to the server log only.
         predictor = None
         logger.exception("Failed to load YOLO model")
-        startup_errors.append(f"Model error: {exc}")
+        # /health is unauthenticated - never echo the raw exception (it can
+        # contain absolute server file paths) back to an anonymous caller.
+        startup_errors.append("Model error: xem log server để biết chi tiết.")
 
     try:
         nutrition_lookup = NutritionLookup(CALORIES_CSV_PATH, MAPPING_PATH)
         logger.info("Nutrition data loaded from %s and %s", CALORIES_CSV_PATH, MAPPING_PATH)
-    except Exception as exc:  # noqa: BLE001
+    except Exception:  # noqa: BLE001
         nutrition_lookup = None
         logger.exception("Failed to load nutrition data")
-        startup_errors.append(f"Calories error: {exc}")
+        startup_errors.append("Calories error: xem log server để biết chi tiết.")
 
 
 @app.get("/")
@@ -160,12 +176,10 @@ async def predict(file: UploadFile = File(...)) -> dict[str, Any]:
             detail="Định dạng ảnh không hỗ trợ. Hãy dùng jpg, jpeg, png, jfif hoặc webp.",
         )
 
-    content = await file.read()
+    content = await _read_upload_within_limit(file, MAX_UPLOAD_SIZE_BYTES)
     logger.info("[predict] Uploaded size: %s bytes", len(content))
     if not content:
         raise HTTPException(status_code=400, detail="File ảnh rỗng.")
-    if len(content) > MAX_UPLOAD_SIZE_BYTES:
-        raise HTTPException(status_code=413, detail="File ảnh vượt quá giới hạn 10MB.")
 
     try:
         image = Image.open(io.BytesIO(content)).convert("RGB")
@@ -234,6 +248,28 @@ async def predict(file: UploadFile = File(...)) -> dict[str, Any]:
         "calorie_estimation_note": CALORIE_ESTIMATION_NOTE,
         "annotated_image_base64": annotated_image_base64,
     }
+
+
+_UPLOAD_READ_CHUNK_BYTES = 1024 * 1024
+
+
+async def _read_upload_within_limit(file: UploadFile, limit: int) -> bytes:
+    """Reads `file` in chunks, aborting with 413 as soon as `limit` is
+    exceeded - instead of buffering an arbitrarily large upload in full
+    (memory/disk) before ever checking its size, which is what `await
+    file.read()` in one call would do regardless of what the client claims
+    its Content-Length is."""
+    chunks: list[bytes] = []
+    total = 0
+    while True:
+        chunk = await file.read(_UPLOAD_READ_CHUNK_BYTES)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > limit:
+            raise HTTPException(status_code=413, detail="File ảnh vượt quá giới hạn 10MB.")
+        chunks.append(chunk)
+    return b"".join(chunks)
 
 
 def _to_optional_number(value: Any) -> float | None:
