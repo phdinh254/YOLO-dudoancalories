@@ -1,6 +1,6 @@
 import type { ChangeEvent, DragEvent, RefObject } from 'react';
 import type { RecognitionResult } from '../types';
-import { CALORIE_ESTIMATION_NOTE, getDetectionCalories, getDetectionName, formatConfidence, toNumber } from '../lib/recognition';
+import { CALORIE_ESTIMATION_NOTE, formatConfidence } from '../lib/recognition';
 
 interface RecognizeTabProps {
   image: string | null;
@@ -40,9 +40,13 @@ export default function RecognizeTab({
   const hasUsableResult = result?.hasUsableResult ?? false;
   // The per-detection breakdown only adds information beyond the summary
   // header when there's more than one item, or when a single item still
-  // needs its own "no calorie data" message.
+  // needs its own "no calorie data" / "not counted" message.
   const showDetectionBreakdown =
-    hasDetections && (detections.length > 1 || detections.some((detection) => detection.nutrition?.matched === false));
+    hasDetections &&
+    (detections.length > 1 ||
+      detections.some(
+        (detection) => detection.nutrition?.matched === false || (detection.nutrition?.matched === true && !detection.counted_in_total),
+      ));
 
   return (
     <div className="fade-in">
@@ -179,14 +183,16 @@ export default function RecognizeTab({
                         </span>
                       </div>
                       <h4 className="text-xl font-extrabold text-on-surface">{result.dishName}</h4>
-                      <span className="text-xs text-primary font-bold flex items-center gap-1 mt-1">
-                        <span className="material-symbols-outlined text-[15px] fill-icon">verified</span>
-                        Độ tin cậy: {result.confidence}%
-                      </span>
+                      {!result.isMultiDish && (
+                        <span className="text-xs text-primary font-bold flex items-center gap-1 mt-1">
+                          <span className="material-symbols-outlined text-[15px] fill-icon">verified</span>
+                          Độ tin cậy: {result.confidence}%
+                        </span>
+                      )}
                     </div>
                     <div className="text-right">
                       <span className="block text-[11px] text-on-surface-variant font-bold uppercase tracking-wider">
-                        Calo tham khảo
+                        {result.isMultiDish ? 'Tổng calo cả ảnh' : 'Calo tham khảo'}
                       </span>
                       <span className="block text-2xl font-extrabold text-secondary">{result.calories} KCAL</span>
                       {result.calorieRange && (
@@ -194,7 +200,9 @@ export default function RecognizeTab({
                           Khoảng ước tính: {result.calorieRange}
                         </span>
                       )}
-                      <span className="text-xs text-on-surface-variant font-semibold">/ khẩu phần</span>
+                      {!result.isMultiDish && (
+                        <span className="text-xs text-on-surface-variant font-semibold">/ khẩu phần</span>
+                      )}
                     </div>
                   </div>
                   {result.hasLowConfidence && (
@@ -222,9 +230,8 @@ export default function RecognizeTab({
               {showDetectionBreakdown && (
                 <div className="space-y-3 flex-1">
                   {detections.map((detection) => {
-                    const calories = getDetectionCalories(detection);
-                    const minCalories = toNumber(detection.nutrition?.calories_min_final);
-                    const maxCalories = toNumber(detection.nutrition?.calories_max_final);
+                    const isLowConfidenceUncounted =
+                      detection.nutrition?.matched === true && !detection.counted_in_total;
                     return (
                       <div
                         key={`${detection.class_id}-${detection.class_name}-${detection.confidence}`}
@@ -232,21 +239,26 @@ export default function RecognizeTab({
                       >
                         <div className="flex justify-between gap-4 items-start">
                           <div>
-                            <h5 className="text-sm font-extrabold text-on-surface">{getDetectionName(detection)}</h5>
+                            <h5 className="text-sm font-extrabold text-on-surface">{detection.dish_name}</h5>
                             <p className="text-xs font-semibold text-on-surface-variant mt-1">
                               YOLO class: {detection.class_name} - {formatConfidence(detection.confidence)}%
                             </p>
                             {detection.nutrition?.matched === false && detection.nutrition?.message && (
                               <p className="text-xs text-error font-semibold mt-2">{detection.nutrition.message}</p>
                             )}
+                            {isLowConfidenceUncounted && (
+                              <p className="text-xs text-secondary font-semibold mt-2">
+                                Độ tin cậy thấp, chưa tính vào tổng calo.
+                              </p>
+                            )}
                           </div>
                           <div className="text-right shrink-0">
                             <span className="block text-sm font-extrabold text-secondary">
-                              {calories !== null ? `${calories} KCAL` : 'Chưa có dữ liệu calories cho món này.'}
+                              {detection.calories !== null ? `${detection.calories} KCAL` : 'Chưa có dữ liệu calories cho món này.'}
                             </span>
-                            {minCalories !== null && maxCalories !== null && (
+                            {detection.calorie_range && (
                               <span className="block text-[11px] text-on-surface-variant font-semibold mt-1">
-                                Khoảng: {minCalories} - {maxCalories} KCAL
+                                Khoảng: {detection.calorie_range}
                               </span>
                             )}
                           </div>
@@ -262,7 +274,7 @@ export default function RecognizeTab({
                   <p className="text-xs text-on-surface-variant leading-relaxed font-semibold">
                     {result.calorieNote || CALORIE_ESTIMATION_NOTE}
                   </p>
-                  {detections.length > 1 && (
+                  {result.isMultiDish && (
                     <p className="text-xs text-on-surface-variant leading-relaxed mt-2">
                       Tổng calo chỉ là tổng tham khảo của các món phát hiện được; hệ thống chưa đo được khối lượng thực tế từ ảnh.
                     </p>

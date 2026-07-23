@@ -20,14 +20,6 @@ export const toNumber = (value: number | string | null | undefined): number | nu
   return null;
 };
 
-export const getDetectionName = (detection: YoloDetection): string => {
-  return detection.nutrition?.food_name_vi || detection.class_name;
-};
-
-export const getDetectionCalories = (detection: YoloDetection): number | null => {
-  return toNumber(detection.nutrition?.calories_per_serving_selected);
-};
-
 export const formatConfidence = (confidence: number): number => {
   return Math.round(confidence * 1000) / 10;
 };
@@ -35,20 +27,43 @@ export const formatConfidence = (confidence: number): number => {
 export const hasUsableDetection = (detections: YoloDetection[]): boolean =>
   detections.some((detection) => detection.nutrition?.matched === true);
 
+/**
+ * Builds a display label for the summary header out of every detection whose
+ * calories are actually folded into the total, so the header can never name
+ * one dish while showing a total that covers several. Repeated dishes (two
+ * separate bowls of the same thing) are grouped as "Tên món x2" for
+ * readability - this only affects the label string, never the underlying
+ * per-detection list or the total itself.
+ */
+export const buildDishSummaryLabel = (countedDetections: YoloDetection[]): string => {
+  const counts = new Map<string, number>();
+  const order: string[] = [];
+  for (const detection of countedDetections) {
+    const name = detection.dish_name || detection.class_name;
+    if (!counts.has(name)) order.push(name);
+    counts.set(name, (counts.get(name) ?? 0) + 1);
+  }
+  return order.map((name) => (counts.get(name)! > 1 ? `${name} x${counts.get(name)}` : name)).join(', ');
+};
+
 export const buildRecognitionResult = (data: YoloPredictResponse): RecognitionResult => {
   const detections = Array.isArray(data.detections) ? data.detections : [];
-  // Prefer the highest-confidence detection that actually matched a food
-  // item over a non-food one (e.g. "Con nguoi") that happened to score
-  // higher, so the summary card doesn't headline "not a food item" while a
-  // real, calorie-bearing match sits in the breakdown below it.
-  const matchedDetections = detections.filter((detection) => detection.nutrition?.matched === true);
-  const primaryDetection = matchedDetections[0] ?? detections[0];
   const hasUsableResult = hasUsableDetection(detections);
-  const calories =
-    toNumber(data.total_calories_estimated) ??
-    detections.reduce((sum, detection) => sum + (getDetectionCalories(detection) ?? 0), 0);
-  const primaryMin = toNumber(primaryDetection?.nutrition?.calories_min_final);
-  const primaryMax = toNumber(primaryDetection?.nutrition?.calories_max_final);
+  // total_calories_estimated is the backend's single source of truth for the
+  // total (already confidence-filtered and matched-only) - never recomputed
+  // here, so the frontend can't independently drift from it.
+  const calories = toNumber(data.total_calories_estimated) ?? 0;
+
+  const countedDetections = detections.filter((detection) => detection.counted_in_total);
+  // Detections that matched a food item but weren't counted in the total
+  // (currently: below-threshold confidence) - shown with a warning, per item.
+  const matchedButUncountedDetections = detections.filter(
+    (detection) => detection.nutrition?.matched === true && !detection.counted_in_total,
+  );
+
+  const isSingleDish = countedDetections.length === 1;
+  const primaryDetection = isSingleDish ? countedDetections[0] : undefined;
+
   const hasLowConfidence = detections.some((detection) => detection.confidence < LOW_CONFIDENCE_THRESHOLD);
 
   return {
@@ -56,19 +71,33 @@ export const buildRecognitionResult = (data: YoloPredictResponse): RecognitionRe
     message: data.message,
     detections,
     annotatedImage: data.annotated_image_base64,
-    dishName: primaryDetection ? getDetectionName(primaryDetection) : 'Không nhận dạng được món ăn',
+    // Single counted dish -> its own name. Multiple -> an honest combined
+    // label naming every dish the total actually covers (never a single
+    // dish's name standing in for a multi-dish total).
+    dishName: primaryDetection
+      ? primaryDetection.dish_name
+      : countedDetections.length > 1
+        ? buildDishSummaryLabel(countedDetections)
+        : matchedButUncountedDetections.length > 0
+          ? buildDishSummaryLabel(matchedButUncountedDetections)
+          : 'Không nhận dạng được món ăn',
     calories,
     totalCalories: calories,
     protein: 0,
     carbs: 0,
     fat: 0,
+    // Only meaningful for a single counted dish; multi-dish totals don't have
+    // one confidence value that represents the whole sum.
     confidence: primaryDetection ? formatConfidence(primaryDetection.confidence) : 0,
     description:
       data.message ||
       'Không nhận dạng được món ăn. Vui lòng thử ảnh rõ hơn, đủ sáng và món ăn nằm trong khung hình.',
-    calorieRange: primaryMin !== null && primaryMax !== null ? `${primaryMin} - ${primaryMax} KCAL` : undefined,
+    // Only shown for a single counted dish - a range for a multi-dish sum
+    // would be as misleading as the name mismatch this fixes.
+    calorieRange: primaryDetection?.calorie_range ?? undefined,
     calorieNote: data.calorie_estimation_note || CALORIE_ESTIMATION_NOTE,
     hasLowConfidence,
     hasUsableResult,
+    isMultiDish: countedDetections.length > 1,
   };
 };

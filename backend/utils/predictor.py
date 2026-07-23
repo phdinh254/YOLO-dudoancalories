@@ -22,7 +22,13 @@ class VietFoodPredictor:
         return self.model is not None
 
     def predict(self, image: Image.Image) -> tuple[list[dict[str, Any]], str]:
-        results = self.model.predict(source=image, conf=self.conf_threshold, verbose=False)
+        # agnostic_nms=True suppresses overlapping boxes across *different*
+        # classes too, not just within the same class. Without it, two visually
+        # similar classes (e.g. "Phở bò" vs "Bún bò") can both pass threshold
+        # for the same physical bowl, double-counting its calories downstream.
+        results = self.model.predict(
+            source=image, conf=self.conf_threshold, agnostic_nms=True, verbose=False
+        )
         result = results[0]
         detections: list[dict[str, Any]] = []
 

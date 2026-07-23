@@ -35,7 +35,19 @@ export interface YoloNutrition {
 export interface YoloDetection {
   class_id: number;
   class_name: string;
+  /** Backend-normalized display name for this detection: nutrition.food_name_vi
+   * when known, otherwise class_name. Single source of truth - do not re-derive. */
+  dish_name: string;
   confidence: number;
+  /** Backend-normalized calories for this detection (null when no calorie data). */
+  calories: number | null;
+  calories_min?: number | null;
+  calories_max?: number | null;
+  /** Pre-formatted "min - max KCAL", or null when no range is available. */
+  calorie_range: string | null;
+  /** Whether this detection's `calories` is folded into total_calories_estimated
+   * (false when unmatched, or confidence is below the backend's threshold). */
+  counted_in_total: boolean;
   nutrition?: YoloNutrition | null;
 }
 
@@ -57,6 +69,9 @@ export interface RecognitionResult extends Partial<FoodLog> {
   calorieRange?: string;
   calorieNote?: string;
   hasLowConfidence?: boolean;
+  /** True when more than one detection is counted in the total - the header
+   * shows a combined label/total instead of a single dish's info. */
+  isMultiDish?: boolean;
   totalCalories: number;
   /** True when at least one detection resolved to real nutrition data
    * (nutrition.matched === true). False for zero detections *and* for

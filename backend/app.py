@@ -23,6 +23,10 @@ CALORIES_CSV_PATH = DATA_DIR / "dataset_calories_v0_34.csv"
 MAPPING_PATH = DATA_DIR / "class_calorie_mapping.json"
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".jfif", ".webp"}
 MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024
+# Matches frontend LOW_CONFIDENCE_THRESHOLD (recognition.ts). Detections below
+# this still show in the per-item breakdown, but a shaky guess shouldn't be
+# allowed to inflate the headline total_calories_estimated.
+CONFIDENCE_SUM_THRESHOLD = 0.5
 CALORIE_ESTIMATION_NOTE = (
     "Calories chỉ là ước tính tham khảo theo khẩu phần chuẩn; "
     "hệ thống chưa đo được khối lượng thực tế từ ảnh 2D."
@@ -53,8 +57,14 @@ class BoundingBoxResponse(BaseModel):
 class DetectionResponse(BaseModel):
     class_id: int
     class_name: str
+    dish_name: str
     confidence: float
     bbox: BoundingBoxResponse
+    calories: float | None = None
+    calories_min: float | None = None
+    calories_max: float | None = None
+    calorie_range: str | None = None
+    counted_in_total: bool = False
     nutrition: dict[str, Any] | None = None
 
 
@@ -196,18 +206,18 @@ async def predict(file: UploadFile = File(...)) -> dict[str, Any]:
                 f"Lỗi tra cứu calories: {exc}",
             )
 
-    total_calories_estimated = 0.0
+    # Every detection gets one normalized record (dish_name/calories/calorie_range/
+    # counted_in_total) right here, right after NMS + nutrition lookup. The list
+    # returned to the client and the total below are both derived from these same
+    # fields on these same detection dicts, so they can't drift apart or use a
+    # different name/value for the same detection.
     for detection in detections:
-        nutrition = detection.get("nutrition") or {}
-        value = nutrition.get("calories_per_serving_selected")
-        if isinstance(value, (int, float)):
-            total_calories_estimated += float(value)
-            continue
-        if isinstance(value, str):
-            try:
-                total_calories_estimated += float(value)
-            except ValueError:
-                continue
+        _normalize_detection(detection)
+
+    total_calories_estimated = sum(
+        (detection["calories"] for detection in detections if detection["counted_in_total"]),
+        0.0,
+    )
 
     message = (
         "Không nhận dạng được món ăn. Vui lòng thử ảnh rõ hơn, đủ sáng và món ăn nằm trong khung hình."
@@ -224,6 +234,60 @@ async def predict(file: UploadFile = File(...)) -> dict[str, Any]:
         "calorie_estimation_note": CALORIE_ESTIMATION_NOTE,
         "annotated_image_base64": annotated_image_base64,
     }
+
+
+def _to_optional_number(value: Any) -> float | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value.strip())
+        except ValueError:
+            return None
+    return None
+
+
+def _format_number(value: float) -> str:
+    if float(value).is_integer():
+        return str(int(value))
+    return str(value)
+
+
+def _normalize_detection(detection: dict[str, Any]) -> dict[str, Any]:
+    """Derive the single, unified per-detection record every consumer reads from.
+
+    Both the returned `detections` list and `total_calories_estimated` are built
+    from these same fields on this same dict, so the dish list the user sees and
+    the total they see can never come from two different datasets.
+    """
+    nutrition = detection.get("nutrition") or {}
+
+    food_name = nutrition.get("food_name_vi")
+    dish_name = str(food_name).strip() if food_name else detection["class_name"]
+
+    calories = _to_optional_number(nutrition.get("calories_per_serving_selected"))
+    calories_min = _to_optional_number(nutrition.get("calories_min_final"))
+    calories_max = _to_optional_number(nutrition.get("calories_max_final"))
+
+    calorie_range = None
+    if calories_min is not None and calories_max is not None:
+        calorie_range = f"{_format_number(calories_min)} - {_format_number(calories_max)} KCAL"
+
+    # A detection only counts toward the total when it resolved to a real
+    # calorie value AND its confidence clears CONFIDENCE_SUM_THRESHOLD. Low-
+    # confidence guesses can still be shown (with a warning) but must not
+    # inflate the headline total.
+    counted_in_total = calories is not None and detection.get("confidence", 0.0) >= CONFIDENCE_SUM_THRESHOLD
+
+    detection["dish_name"] = dish_name
+    detection["calories"] = calories
+    detection["calories_min"] = calories_min
+    detection["calories_max"] = calories_max
+    detection["calorie_range"] = calorie_range
+    detection["counted_in_total"] = counted_in_total
+    return detection
 
 
 def _missing_nutrition(class_name: str, message: str) -> dict[str, Any]:
